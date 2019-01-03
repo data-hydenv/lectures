@@ -1,0 +1,197 @@
+---
+title: "Introduction to PostgreSQL"
+description: |
+  Notes to introductory database lecture.
+author:
+  - name: Mirko Mälicke
+    url: https://hyd.iwg.kit.edu/personen_maelicke.php
+    affiliation: Institute for Water and River Basin Management, Karlsruhe Institute for Technology
+    affiliation_url: https://hyd.iwg.kit.edu
+date: "`r Sys.Date()`"
+output: radix::radix_article
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+# require the package
+if (!("RPostgreSQL" %in% installed.packages())){
+  install.packages("RPostgreSQL")
+}
+if (!("getPass" %in% installed.packages())){
+  install.packages("getPass")
+}
+require(RPostgreSQL)
+require(getPass)
+
+# establish the connection
+drv <- dbDriver('PostgreSQL')
+con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
+                 password=getPass('Provide the password'), dbname='datamanagement')
+```
+
+# SQL language
+
+The SQL is defined to be a own name but is more often referred to as an abbreviation of **S**tandard **Q**uery **L**anguage. (Which is officially not correct.) 
+The SQL language is a very structured but yet unflexible language. Unlike R, you have to exactly specify what and how you want to manipulate or query data in the system. Trail-and-Error like invoking and calling of function won't yield any success in most cases. 
+You can use SQL for all kinds of database-related work. You can define the structure of the database, the data types used or constrains your data has to fit using SQL. 
+At the same time, you push and pull data from and to the database, can change the data or calculate new values using SQL. 
+Whenever you are able to perform a operation in the database itself instead of loading raw data to a front-end like R and then operating on it, you will have a much better performance in most cases. 
+This is especially true for data operations like aggregations which usually tend to decrease the data density. Remind that your internet connection will be the bottleneck in noumerous calculations.<br>
+Another advantage is the regularization of the SQL language. There are literally dozens of different database systems. 
+Only from the world of relational database systems there is MySQL, PostgreSQL, SQLite, MSSQL or Oracle to name just the most common ones. Each of this systems understands a *SQL standard* and a *SQL accent*. The standard is a subset of defined functions and keywords that each and any database system does understand. This means by learning SQL once you will be able to operate on many different systems. 
+Theoretically. In practice, these standards are very restrictive and the real power of each system lays in its accent. This
+is a extension to a SQL standard, which is specific to each database management system and often enough also RDBMS version. 
+Therefore, learning SQL for PostgreSQL will help you to learn other systems, but unfortunatelly not prevent you from learning other accents.
+
+# SQL Query
+
+Any execution command pushed to the database system is called a query. This does not necessarily mean that you are actually *querying*, i.e. asking for data. The command for deleting a whole table is also called a query.
+Usually you define the basic **Operation**, followed by the **Entitiy** to operate on, the specified optional **Parameters** how to run the operation and a **Filter** statement which data points shall be affected. Additionally, a **grouping** and a **sorting** can be appended to data queries. 
+The four most important database operations are <span style="color:blue">SELECT</span>, <span style="color:blue">INSERT</span>, <span style="color:blue">UPDATE</span> and <span style="color:blue">DELETE</span>. The main entities we will be focusing on are tables, columns and constrains. The only filter we will use is the so called <span style="color:blue">WHERE</span>-clause. <br>
+
+## select
+
+Now, let's start with the 'Hello World!' example of the database world: select all rows (datasets) from one table (entity).
+
+```{sql connection=con}
+SELECT * FROM hobo
+```
+
+The '\*' means _all_ here. So instead of writing down all single columns we want to load, we can use the star. In the databse language a column is also called an *attribute*, that has different *values* for each dataset. 
+As the HOBO table has an attribute 'YEAR' holding the class year value for each dataset, we can now filter the table for HOBOs of a specific generation by using a <span style="color:blue">WHERE</span> clause. Additionally we will only ask for the id, hobo_id and the year attribute.
+
+```{sql connection=con}
+SELECT id, hobo_id, year FROM hobo WHERE year=2018
+```
+
+As you can see, SQL is not case-sensitive. But it is convention to write SQL keyword all UPPERCASE and entities, columns and properties lowercase, although the queries still work if you do not stick to that. THe only exception is PostgreSQL, which will not accept uppercase entity names. These would have to be quoted though. 
+
+<div class="alert alert-warning">**CAUTION:** Unlike R, SQL makes a difference between single and double quotes. Single quotes are used for values in strings, texts and character chains, while double quotes are used for quoting entity names. E.g.:<br>
+WHERE "name"='Freiburg'.<br> The opposite usage will not work.</div>
+
+## ordering and limiting the results
+
+The select is the most important operation for us, as we usually have complex structured data in the database and need very specific subsets of that data for analysis. Another powerful data extraction tool is the database ability to rapidly order data and limit the output.
+
+```{sql connection=con}
+SELECT id, hobo_id, year, radiation_influence FROM hobo ORDER BY year DESC LIMIT 5
+```
+
+```{sql connection=con}
+SELECT id, hobo_id, year, radiation_influence FROM hobo ORDER BY year ASC LIMIT 5
+```
+
+In many circumstances a sort-and-limit approach might be tremendously faster than a where.
+
+## filter
+
+Databases are not only good at comparing filter to values, but also in searching the values itself. You can use the percentage sign in PostgreSQL as a placeholder for _any sign_. Instead for searching for an exact match, we can filter by a _string alike_.
+
+```{sql connection=con}
+SELECT id, hobo_id, year, radiation_influence FROM hobo WHERE radiation_influence LIKE 'w%'
+```
+
+These are all HOBOs starting with <span style="color: darkred">'w'</span>, while:
+
+```{sql connection=con}
+SELECT id, hobo_id, year, radiation_influence FROM hobo WHERE radiation_influence LIKE '%w%'
+```
+
+will return anything that has a <span style="color: darkred">'w'</span> somewhere in the radiation_influence attribute.
+
+## aggregation
+
+The SQL langauage is especially useful when it comes to data aggregation. SQL can not only be used to take over most of the aggregation parts in a data analysis pipeline, it is also useful to decrease the data density before sending it through your internet connection.
+The easiest aggregation is to aggregate a whole table using the function _count_. 
+
+```{sql connection=con}
+select count(*) from hobo
+```
+
+This is useful in case you need to know how many datasets are present in a table.<br>
+Nevertheless, this is a quite unique aggregation. Usually you will aggregate in a grouping statement. You will query data, group it 
+by any attribute and any non-grouping attribute has to be aggregated within this group.
+
+```{sql connection=con}
+select year, count(year) from hobo group by year
+```
+
+The group by statement does also work on the result of functions. We can use the _substr_ function to extract the first letter.
+
+```{sql connection=con}
+select substr(radiation_influence, 1,1) as first_letter, count(id) from hobo group by substr(radiation_influence, 1,1)
+```
+
+# Unique values & UNIONS
+
+A very powerful feature is SQL's ability to select values only once from a table. In SQL words we <span style="color: blue">SELECT DISTINCT</span>. You may have noticed, that there are double entries in the radiation_influence attribute and it's mixing German and English words. This query might be helpful when one plans to tidy up the table:
+
+```{sql connection=con}
+SELECT DISTINCT radiation_influence from hobo
+```
+
+This can easily be combined with an aggregation:
+
+```{sql connection=con}
+SELECT radiation_influence, count(id) as amount from hobo group by radiation_influence order by  amount desc
+```
+
+In case we are only interested in the 'wenig' and 'low' entries we can follow two different strategies. Either group-aggregate-filter, or filter-union. Depending on the data structure these two queries can show clear performance differences while yielding the same results:
+
+```{sql connection=con}
+SELECT radiation_influence, count(id) as amount from hobo where radiation_influence in ('wenig', 'low')
+group by radiation_influence order by  amount desc
+```
+```{sql connection=con}
+SELECT radiation_influence, count(id) as amount from hobo where radiation_influence='wenig' group by radiation_influence
+UNION
+SELECT radiation_influence, count(id) as amount from hobo where radiation_influence='low' group by radiation_influence
+```
+
+# Joins
+
+The one feature making PostgreSQL actually an _relational_ database system is the fact that, technically, there are no duplicates in any table. Tha means each row (or _relation_) has an unique identifier. This is called the **primary key**. 
+For hobo, this is the _id_ attribute. 
+There is also another table called *raw_data*. Let's have a look at that table:
+```{sql connection=con}
+SELECT * from raw_data limit 5
+```
+
+The raw_data table has a *compound* or *combined* primary key. Each row has to be unique on each combination of 'hobo_id' and 'tstamp'.
+One sensor can have multiple measurements and there can be multiple measurements at the same point in time. The combination has to be unique as one sensor cannot take multiple measurements at the same time.
+A database system can now easily join the meta data about a sensor and the actual measurement together whenever needed. Here, hobo further describes the data living in raw_data. Or in other words, hobo is a lookup table for raw_data. This is their relationship (therefore **relational** database). Any relationship does also have a **cardinality** further specifying the kind of relation. in this case it is a 1:m or 'one to many' relationship as one hobo can hold many raw_data entries.
+
+This technique descreases the table size, increases performance and makes the maintainance way easier. 
+On the other hand, it makes queries more complicated. The <span style="color: blue">JOIN</span> command can be used to utilize this connection.
+
+```{sql connection=con, echo=TRUE}
+select * from raw_data
+  join hobo on raw_data.hobo_id=hobo.hobo_id
+
+limit 10
+```
+
+The table above summarizes all information we have available about every record of measurement. Now imagine that the hobo table might easily have 20 attributes. This demonstrates, why we should split up our data as much as possible. 
+This is called **normalization**, because you not only decrease the data density, improve query performance and make your data less error prone, you will also define entities as closed structures and break complex data into small comprehensible pieces.
+
+Using the techniques from above, we can now create summaries or indices about our data in the database, before it is transferred to our local machine.
+```{sql connection=con}
+select h.hobo_id, radiation_influence, count(tstamp) as amount, avg(temperature) as mean_t, avg(light) as mean_light 
+from raw_data r
+join hobo h on h.hobo_id=r.hobo_id
+group by h.hobo_id, radiation_influence
+```
+
+This query would still be comparable fast in case both table would be lager by factor 1000. 
+The shown query is a quite simple one. There are a few more aggregation functions built-in and PostgreSQL offers possiblities to write custom functions in their own database language pgsql along with an interface to run C++ or Python functions. 
+Additionally, the way of calculating mean light influence is not ideal, as there are all the night measurements included and some sensors are aggregating two generations, while other HOBOs were only used last year or two years ago.<br>
+<br>
+
+
+# cleanup
+
+After each session, you must not forget to disconnect from the database. Otherwise your connection might stay open and prevent other applications from connecting to the database.
+
+```{r}
+dbDisconnect(con)
+```
