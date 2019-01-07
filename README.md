@@ -1,1 +1,1 @@
-# exercises
+# Lectures (private)
