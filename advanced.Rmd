@@ -1,0 +1,351 @@
+---
+title: "Advanced SQL Techniques"
+description: |
+  Learn in depth database structuring with SQL.
+author:
+  - name: Mirko Mälicke
+    url: https://hyd.iwg.kit.edu/personen_maelicke.php
+    affiliation: Institute for Water and River Basin Management, Karlsruhe Institute for Technology
+    affiliation_url: https://hyd.iwg.kit.edu
+date: "`r Sys.Date()`"
+output:  
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  radix::radix_article:
+    toc: yes
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+```{r setup, include=True}
+knitr::opts_chunk$set(echo = FALSE)
+
+# require the package
+if (!("RPostgreSQL" %in% installed.packages())){
+  install.packages("RPostgreSQL")
+}
+if (!("getPass" %in% installed.packages())){
+  install.packages("getPass")
+}
+require(RPostgreSQL)
+require(getPass)
+require(ggplot2)
+require(dplyr)
+
+# establish the connection
+drv <- dbDriver('PostgreSQL')
+con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
+                 password=getPass('Provide the password'), dbname='datamanagement')
+```
+
+# Temporarily creating objects
+
+Especially for development and data analysis tasks it is very useful to create temporary results. This saves a lot of time and will keep
+ your database clean as you do not have to remember which objects were only intermediate and can be droped.
+The SQL language knows the <span style="color:blue">TEMPORARY</span> keyword, which can be used along with <span style="color:blue">CREATE</span> statements. 
+This is most often used on the creation of tables and views. The temporary tables can be used just like persistent tables, but once you close the connection used for creation, the table will automatically be droped. This can save you from a lot of cleanup work. 
+
+<div class="alert alert-warning">Some SQL clients open and close a connection on each command issued in order to keep the number of connection small and prevent the user from keeping open connections. You will have to change the settings or the tool in case you want to use temporary object using these tools.</div>
+<hr>
+The structure of our raw_data table is not normalized. The main reason is that there are more than one actual measuring value stored in one record. In our specific case this makes sense, as there are only two variables and they always come together. We are only using one kind of sensor, that did also prevent us from creating a sensor lookup table.
+However, in real world applications you will usually have to store that kind of metadata. There are sensors measuring only one variable and they are installed at specific locations, like stations, which come with their own metadata. Sensors might break and get replaced by other devices than used before. 
+A common way to store timeseries data is to put each and every measurement into its own record and describe it by a lookup table, which describes the used sensor, a lookup table describing the variable and another one describing the data quality.
+This structure might feel strange but is very common to save timeseries data. It is performant, flexible and easy to maintain and extend.
+These advantages come at the trade-off of a bit more complex structure and hence more complicated queries. 
+But one step after the other. 
+
+## Creating a new structure
+
+Let's implement a structure like this in a temporary table.
+```{sql connection=con}
+create temporary table variables (
+id integer primary key,
+name varchar (255) not null,
+unit varchar (255)
+)
+```
+
+Insert two records for the two measured variables:
+```{sql connection=con}
+insert into variables (id, name, unit) values (1, 'temperature', 'deg. C'), (2, 'light', 'lux or whatever')
+```
+
+And verify the results:
+```{sql connection=con}
+select * from variables
+```
+
+Another, very handy way of creating a table is to store the result of a query into a new table. We can use this to to create the new temporary data table.
+
+```{sql connection=con}
+create temporary table data_extended as
+select hobo_id, tstamp, temperature as value, 1 as variable_id from raw_data
+```
+
+Now, all the temperature values are in this new table. We can insert from a select as well.
+```{sql connection=con}
+insert into data_extended
+select hobo_id, tstamp, light as value, 2 as variable_id from raw_data
+```
+
+Finally, there should be twice as many records in the new table.
+```{sql connection=con}
+select 'raw_data' as "table", count(*) as records from raw_data
+union
+select 'extended' as "table", count(*) as records from data_extended
+```
+
+## Working with data
+
+One of the main advantages is that our metadata model can easily be extended. We can add more attributes to the variable information, add quality measures or even further discriminate the sensor without having to touch the data table. Once this table grows in size, or has to be available in real time as other application depend on it, this is big advantage.
+As set out before, we buy this flexibility and performance gains at the cost of query complexity.<br>
+The next structure we want to use is the view. A view is like a persistant <span style="color: blue">SELECT</span> query that will be rerun each time you try to query the results. 
+Here, temporary tables or views can get quite powerful. It will behave like a dynamic table with the only difference of being not editable. From a performance point of view, a view is not capable of indices, which can make it way slower than a table. On the other hand a view is just a stored query that will be executed on each query and therefore will not take any disk space and update automatically<br>
+ Let's create a temporary view on temperature data only.
+```{sql connection=con}
+create temporary view temperature as
+select hobo_id, tstamp, value as temperature from data_extended where variable_id=1
+```
+```{sql connection=con}
+select * from temperature limit 5
+```
+
+We can also create a view on a view, for example calculating current daily indices:
+```{sql connection=con}
+create temporary view temperature_indices as
+select hobo_id, 
+  date_trunc('day', tstamp) as date, 
+  avg(temperature) as mean, 
+  min(temperature) as min, 
+  max(temperature) as max
+from temperature
+group by hobo_id, date
+```
+```{sql connection=con}
+select * from temperature_indices order by date desc limit 5
+```
+
+This could also be caluclated for the day measurements only, by simply adding a filter.
+```{sql connection=con}
+create temporary view day_temperature_indices as
+select hobo_id, 
+  date_trunc('day', tstamp) as date, 
+  avg(temperature) as mean, 
+  min(temperature) as min, 
+  max(temperature) as max
+from temperature
+where date_part('hour', tstamp) <= 8 and date_part('hour', tstamp) <= 18
+group by hobo_id, date
+```
+```{sql connection=con}
+select * from day_temperature_indices order by date desc limit 5
+```
+
+This is a great overview table for doing some in-depth analysis of the day or night temperature. Once you streamed your results into R, a persistant table or any kind of text-based file, you can just close the database connection and all temporary tables and views will be dropped.
+
+```{sql connection=con, output.var="temperature"}
+select * from temperature_indices
+```
+```{sql connection=con, output.var="temperature.day"}
+select * from day_temperature_indices
+```
+```{r}
+temperature %>%
+  filter(date > '2017-06-01') %>%
+  ggplot(aes(x=date, y=mean)) + 
+  geom_line(color='brown', size=2)
+
+temperature.day %>%
+  filter(date > '2017-06-01') %>%
+  ggplot(aes(x=date, y=mean)) + 
+  geom_line(color='red', size=2)
+
+```
+
+Maybe combine it somehow...
+```{r}
+full_join(temperature, temperature.day, by='date') %>%
+  filter(date > '2017-06-01') %>%
+  ggplot(aes(x=date, y=value)) +
+  geom_line(aes(y=mean.x), color='red', size=2, alpha=0.6) + 
+  geom_line(aes(y=mean.y), color='blue', size=1, alpha=0.8)
+
+```
+
+<div class="alert alert-success">Before you continue, play around with these objects a little bit. You should get a good feeling for whether to use temporary object or not. You could for example create another view that holds the exact same information but only for night temperatures.
+</div>
+
+# Joins
+## chaining Joins
+This section will give some more insights on <span style="color:blue">JOINS</span>. It will cover different types of JOINS and how to chain a JOIN. 
+Quite often you will find yourself in a situation, where you have to join a lookup table to a table of interest 
+and this lookup table is itself described by another lookup table. 
+Querying these structures is fairly straightforward as you can just chain joins together. 
+This can be demonstrated by the vegetation_cover table
+
+```{sql connection=con}
+select * from hobo h
+join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom)
+join vegetation_cover_description vd on vd.id=vc.description_id 
+```
+
+Now, we could join this result to the data table and make all this meta data available to every measurement record. 
+This will obviusly take some time. 
+In this case you are not interested in the full meta_data record but just in a subset. Of course we want to come up with a fast solution.
+<br> Let's build two different Views producing the same output.
+
+```{sql connection=con}
+create temporary view join_then_filter as
+select d.tstamp, d.value, h.hobo_id, v.name as variable, v.unit, vd.description as vegetation from data_extended d
+join hobo h on h.hobo_id=d.hobo_id
+join variables v on d.variable_id=v.id
+join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom)
+join vegetation_cover_description vd on vd.id=vc.description_id 
+where v.id=1 and h.geom is not null and year=2018
+```
+```{sql connection=con}
+create temporary view filter_then_join as
+select d.tstamp, d.value, h.hobo_id, v.name as variable, v.unit, vd.description as vegetation from data_extended d
+join hobo h on h.hobo_id=d.hobo_id and h.year=2018
+join variables v on d.variable_id=v.id and v.id=1
+join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom) and h.geom is not null
+join vegetation_cover_description vd on vd.id=vc.description_id
+```
+
+Let's have a look on the first two rows of both views:
+```{sql connection=con}
+select * from join_then_filter limit 2
+```
+```{sql connection=con}
+select * from filter_then_join limit 2
+```
+
+<div class="alert alert-warning">Before you continue, what do you think is the faster query and why?</div>
+
+```{sql connection=con}
+explain analyze select * from join_then_filter
+```
+```{sql connection=con}
+explain analyze select * from filter_then_join
+```
+
+<div class="alert alert-success">Have a close look and don't focus on the total time. The query plan is exactly the same, that means although we were using a different query logic, PostgreSQL kind of got the idea behind our query and tried to find the fastest solution.</div>
+
+## left/right join
+
+In all the preceding examples, the join of two tables went quite well as every entry in the first table could find at least on entry 
+on the second table. Switching to 'database language' here, the first table will be called the _left_ and the second one the _right_ table.
+By default, the database will always join the right to the left one. If there is no foreign key referencing a record on the right table, there won't be a join for these entries. <br>
+Thus, the _default_ join is in reality a <span style="color:blue">LEFT JOIN</span>. 
+The oposite direction for building the join can be achieved by using a <span style="color:blue">RIGHT JOIN</span>.<br>
+This can be illustrated by building an easy example.
+```{sql connection=con, warning=F, echo=F, message=F}
+create temporary table roles (
+  id serial constraint pkey_roles primary key,
+  name text
+);
+create temporary table people (
+  id serial constraint pkey_people primary key,
+  name text,
+  role_id integer constraint fkey_role references roles
+);
+insert into roles (id, name) values (1, 'jun. developer'), (2, 'sen. developer'), (3, 'boss');
+insert into people (name, role_id) values ('alex', 1), ('dave', NULL), ('christine', 3), ('brian', 2), ('melanie', 2);
+```
+
+looks like:
+```{sql connection=con}
+select * from people
+```
+```{sql connection=con}
+select * from roles
+```
+
+Now, the left join should give us the expected example of the roles.id and roles.name bound to everybody except dave. The right join on the other hand should give us the roles with the people bound to it. 
+
+<div class="alert alert-warning">Before you procede think about the following aspects:
+  * What will happen to dave? Omitted?
+  * Who will be bound to sen. developer - brian or melanie - and why?
+</div>
+
+```{sql connection=con}
+select * from people p left join roles r on p.role_id=r.id
+```
+```{sql connection=con}
+select * from people p right join roles r on p.role_id=r.id
+```
+ 
+Not what you expected? Well, the left/right just gives the **direction**. That's why dave is only missing in the right join.
+For the opposite **behaviour** we will need another _type_ of joining, more on that in the next section. 
+What you might have expected for the second example is the opposite _join_.:
+```{sql connection=con}
+select * from roles r join people p on p.role_id=r.id
+```
+with the other direction:
+```{sql connection=con}
+select * from roles r right join people p on p.role_id=r.id
+```
+
+## inner/outer join
+
+The _type_ of join is controlled by the <span style="color:blue">INNER</span> and <span style="color:blue">OUTER</span> keyword.
+This sets the condition on omitting and duplication of entires in the result. 
+Think of these keywords from a mengenlehre perspective. The INNER subset of both tables are the ones which are described by a
+foreign key on the left and a primary key on the right table (if the direction is _left_). 
+The OUTER subset are the records which are either described by a **primary key** on the left or right, no matter what the direction 
+might look like.
+```{sql connection=con}
+select * from people p inner join roles r on p.role_id=r.id
+```
+```{sql connection=con}
+select * from people p left outer join roles r on p.role_id=r.id
+```
+```{sql connection=con}
+delete from people where id=1
+```
+```{sql connection=con}
+select * from people p left outer join roles r on p.role_id=r.id
+```
+
+```{sql connection=con}
+select * from people p inner join roles r on p.role_id=r.id
+```
+<div class="alert alert-success">LEFT/RIGHT joins decide on the __direction__ you look at the joined information. If you look from the left, you will only see entries from the left table and vice versa. INNER/OUTER joins decide on the __type__ of join. This controls the conditions for including/excluding/duplicating entries in the result.</div>
+
+<div class="alert alert-warning">There is also something called a <span style="color:blue">NATURAL JOIN</span> in PostgreSQL.
+This will use the foreign key from the left table using the exactly same name as the primary key in the right table and 
+omit both columns in the result.</div>
+
+
+### Back to temporary objects
+
+In fact we flooded the database with a lot of views and tables during this session. Some of them were tables of quite substatial size compared to the pre-existing tables. Do you still remember every single object? No?
+No problem, these were all temporaray objects. Now close the connection:
+
+```{r}
+dbDisconnect(con)
+```
+
+Restablish:
+
+```{r}
+# establish the connection
+drv <- dbDriver('PostgreSQL')
+con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
+                 password=getPass('Provide the password'), dbname='datamanagement')
+```
+
+And the tables are gone:
+```{r}
+'temperature_indices' %in% dbListTables(con) | 'temperature' %in% dbListTables(con) | 'people' %in% dbListTables(con)
+```
+
+# cleanup
+```{r}
+dbDisconnect(con)
+```
