@@ -5,7 +5,7 @@ description: |
 author:
   - name: Mirko Mälicke
     url: https://hyd.iwg.kit.edu/personen_maelicke.php
-    affiliation: Institute for Water and River Basin Management, Karlsruhe Institute for Technology
+    affiliation: Karlsruhe Institute for Technology (KIT)
     affiliation_url: https://hyd.iwg.kit.edu
 date: "`r Sys.Date()`"
 output:  
@@ -13,12 +13,12 @@ output:
     number_sections: yes
     toc: yes
     toc_float: yes
-  radix::radix_article:
-    toc: yes
   html_notebook:
     number_sections: yes
     toc: yes
     toc_float: yes
+  radix::radix_article:
+    toc: yes
   pdf_document:
     toc: yes
 ---
