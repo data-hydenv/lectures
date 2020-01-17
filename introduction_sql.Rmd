@@ -9,16 +9,16 @@ author:
     affiliation_url: https://hyd.iwg.kit.edu
 date: "`r Sys.Date()`"
 output:  
-  radix::radix_article:
-    toc: yes
-  html_notebook:
-    number_sections: yes
-    toc: yes
-    toc_float: yes
   html_document:
     number_sections: yes
     toc: yes
     toc_float: yes
+  html_notebook:
+    number_sections: yes
+    toc: yes
+    toc_float: yes
+  radix::radix_article:
+    toc: yes
   pdf_document:
     toc: yes
 ---
@@ -73,7 +73,7 @@ The '\*' means _all_ here. So instead of writing down all single columns we want
 As the HOBO table has an attribute 'YEAR' holding the class year value for each dataset, we can now filter the table for HOBOs of a specific generation by using a <span style="color:blue">WHERE</span> clause. Additionally we will only ask for the id, hobo_id and the year attribute.
 
 ```{sql connection=con}
-SELECT id, hobo_id, year FROM hobo WHERE year=2018
+SELECT id, hobo_id, year FROM hobo WHERE year=2020
 ```
 
 As you can see, SQL is not case-sensitive. But it is convention to write SQL keyword all UPPERCASE and entities, columns and properties lowercase, although the queries still work if you do not stick to that. THe only exception is PostgreSQL, which will not accept uppercase entity names. These would have to be quoted though. 
@@ -125,7 +125,7 @@ Nevertheless, this is a quite unique aggregation. Usually you will aggregate in 
 by any attribute and any non-grouping attribute has to be aggregated within this group.
 
 ```{sql connection=con}
-select year, count(year) from hobo group by year
+select year, count(id) from hobo group by year
 ```
 
 The group by statement does also work on the result of functions. We can use the _substr_ function to extract the first letter.
@@ -145,7 +145,7 @@ SELECT DISTINCT radiation_influence from hobo
 This can easily be combined with an aggregation:
 
 ```{sql connection=con}
-SELECT radiation_influence, count(id) as amount from hobo group by radiation_influence order by  amount desc
+SELECT radiation_influence, count(id) as amount from hobo group by radiation_influence order by  amount desc 
 ```
 
 In case we are only interested in the 'wenig' and 'low' entries we can follow two different strategies. Either group-aggregate-filter, or filter-union. Depending on the data structure these two queries can show clear performance differences while yielding the same results:
@@ -178,7 +178,7 @@ On the other hand, it makes queries more complicated. The <span style="color: bl
 
 ```{sql connection=con, echo=TRUE}
 select * from raw_data
-  join hobo on raw_data.hobo_id=hobo.hobo_id
+  join hobo on raw_data.hobo_id=hobo.id
 
 limit 10
 ```
@@ -188,10 +188,10 @@ This is called **normalization**, because you not only decrease the data density
 
 Using the techniques from above, we can now create summaries or indices about our data in the database, before it is transferred to our local machine.
 ```{sql connection=con}
-select h.hobo_id, radiation_influence, count(tstamp) as amount, avg(temperature) as mean_t, avg(light) as mean_light 
+select h.hobo_id, year, radiation_influence, count(tstamp) as amount, avg(temperature) as mean_t, avg(light) as mean_light 
 from raw_data r
-join hobo h on h.hobo_id=r.hobo_id
-group by h.hobo_id, radiation_influence
+join hobo h on h.id=r.hobo_id
+group by h.hobo_id, radiation_influence, year
 ```
 
 This query would still be comparable fast in case both table would be lager by factor 1000. 
