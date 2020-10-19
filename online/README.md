@@ -26,7 +26,9 @@ These could be advanced sessions and it is completely up to you if you want to t
 | Session | Mandatory | OS | Link |
 |---------|-----------|----|------|
 | 01 Install Postgres | yes | all |  |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.1 local | yes | all | [local.md](02_install_postgres/local.md) |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.2 remote | no | Linux | [remote.md](02_install_postgres/remote.md) |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.3 cloud | no | Linux | [cloud.md](02_install_postgres/cloud.md) |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.1 local | yes | all | [local.md](01_install_postgres/local.md) |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.2 remote | no | Linux | [remote.md](01_install_postgres/remote.md) |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.3 cloud | no | Linux | [cloud.md](01_install_postgres/cloud.md) |
 | 02 - Install Software | yes | all |  |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.1 Mandatory software | yes | all | [mandatory.md](02_install_software/mandatory.md) |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.2 Recommended software | no | all | [recommended.md](02_install_software/recommended.md) |
