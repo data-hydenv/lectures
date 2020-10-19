@@ -52,4 +52,18 @@ Thus, use these settings only if absolutely necessary or during development and
 be more restrictive in production systems.
 
 Usually, you will put some kind of REST middleware between incoming HTTP requests
-and database responses. 
+and database responses.
+
+## Development
+
+There are cases when you need to run a remote PostgreSQL instance during development,
+because the productive system will be distributed on several machines.
+In these cases it can be a wise decision to run the PostgreSQL database in a
+virtual machine on your computer. Choose a server version (without Desktop) of
+your preferred OS, usually Ubuntu, Fedora or Debian. This has many advantages like:
+
+* With many server providers, like GCP, AWS, AZURE or IONOS you can simply upload
+the VM to the server.
+* You develop with the correct system in your stack
+* VMs can be completely shut down with a single click, or autostarted whenever
+your System boots. You can easily adapt this to your needs.
