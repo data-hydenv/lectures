@@ -6,4 +6,5 @@ databases in general, and an introduction to the common database language SQL.
 ## Sessions
 
 * [Introdcution to PostgreSQL](postgresql.md)
+* [Overview of other RDBMS](other_rdbms.md)
 * [Introduction to SQL](sql.md)
