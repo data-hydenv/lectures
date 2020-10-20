@@ -32,4 +32,7 @@ These could be advanced sessions and it is completely up to you if you want to t
 | 02 - Install Software | yes | all |  |
 | &nbsp;&nbsp;&nbsp;&nbsp;2.1 Mandatory software | yes | all | [mandatory.md](02_install_software/mandatory.md) |
 | &nbsp;&nbsp;&nbsp;&nbsp;2.2 Recommended software | no | all | [recommended.md](02_install_software/recommended.md) |
-| 03 - Hydenv CLI | yes | all | [README.md](03_hydenv_cli/README.md) |
+| 03 - Hydenv CLI | no | all | [README.md](03_hydenv_cli/README.md) |
+| 04 - Introduction | yes | all |  |
+| &nbsp;&nbsp;&nbsp;&nbsp;4.1 PostgreSQL | no | all | [postgresql.md](04_introduction/postgresql.md) |
+| &nbsp;&nbsp;&nbsp;&nbsp;4.2 SQL | yes | all | [sql.md](04_introduction/sql.md) |
