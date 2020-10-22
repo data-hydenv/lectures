@@ -1,5 +1,12 @@
 # SQL language
 
+Use the `space_raw` table for this introduction. It is installed along with
+a clean initialization. If not run:
+
+```
+python -m hydenv examples space
+```
+
 ## General
 
 * standardized language, that works across all relational systems
@@ -48,7 +55,11 @@ In addition, the most important structural commands are:
 The basic syntax to select is
 
 ```SQL
-SELECT col_1, col_2 FROM tablename
+SELECT column_1, cololumn_2 FROM tablename
+```
+
+```SQL
+SELECT location, detail, status_mission from space_raw
 ```
 
 Instead of typing down **all** columns, there is the asterisk `*`, as a shortcut:
@@ -62,7 +73,7 @@ SELECT * FROM tablename
 To filter the datasets, use `WHERE`
 
 ```SQL
-SELECT name, size FROM cities WHERE name = 'Freiburg'
+SELECT * FROM space_raw WHERE detail = 'Saturn V | Apollo 13'
 ```
 
 ### LIMIT
@@ -70,5 +81,38 @@ SELECT name, size FROM cities WHERE name = 'Freiburg'
 Limit the results, to prevent PostgreSQL from returning everything, that matches a filter.
 
 ```SQL
-SELECT name, size FROM cities LIMIT 5
+SELECT * FROM space_raw LIMIT 5
+```
+
+### Order
+
+Order results depending on the data type. Combined with a `LIMIT`, you can
+quickly access the largest, smallest values.
+
+```SQL
+SELECT * FROM space_raw ORDER BY datum ASC LIMIT 5
+```
+
+### LIKE
+
+With `LIKE` you can filter by *partial matches* on string fields. Use `%` as a wildcard.
+
+```SQL
+SELECT * FROM space_raw where detail LIKE '%Sputnik%'
+```
+
+### Aggregation
+
+You can aggregate result by grouping them on one or many columns using `GROUP BY`
+and then pass an aggregation function for all remaining (ungrouped) columns.
+For available functions, search the documentation.
+
+```SQL
+SELECT
+  company_name,
+  count(*) as launches
+FROM space_raw
+GROUP BY company_name
+ORDER BY launches DESC
+LIMIT 5
 ```
