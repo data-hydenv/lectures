@@ -37,3 +37,4 @@ These could be advanced sessions and it is completely up to you if you want to t
 | &nbsp;&nbsp;&nbsp;&nbsp;4.1 PostgreSQL | no | all | [postgresql.md](04_introduction/postgresql.md) |
 | &nbsp;&nbsp;&nbsp;&nbsp;4.1 Alternatives | no | all | [other_rdbms.md](04_introduction/other_rdbms.md) |
 | &nbsp;&nbsp;&nbsp;&nbsp;4.2 SQL | yes | all | [sql.md](04_introduction/sql.md) |
+| 05 - DB normalization | yes | all | [README.md](05_normalization/README.md) |
