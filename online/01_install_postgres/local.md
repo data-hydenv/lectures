@@ -5,11 +5,11 @@ running a Linux OS in a virtual machine, if you use Windows or Mac.
 
 ## Linux
 
-Install the available PostgreSQL, PostGIS and PgAdmin4 version from the
+Install the available PostgreSQL and PostGIS version from the
 sources. On Ubuntu/Debian based systems you can do that in one command
 
 ```
-sudo apt install postgresql postgresql-client postgis pgadmin4
+sudo apt install postgresql postgresql-client postgis
 ```
 
 ## Windows
