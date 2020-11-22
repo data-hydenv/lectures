@@ -1,13 +1,69 @@
 # SQL language
 
 Use the `space_raw` table for this introduction. It is installed along with
-a clean initialization. If not run:
+a clean installation of the hydenv database. If the table is not found, run:
 
 ```
 python -m hydenv examples space
 ```
 
-## General
+Below, you will find the SQL queries used in the video, followed by a summary of
+the lessions learned.
+
+## SQL commands in the video
+
+```SQL
+-- count all rows
+SELECT count(*) FROM space_raw;
+```
+
+```SQL
+-- Get the first 5 rows
+SELECT * FROM space_raw LIMIT 5;
+```
+
+```SQL
+-- get the first 50 datum and detail information
+SELECT datum, detail FROM space_raw LIMIT 50;
+```
+
+```SQL
+-- order by datum
+SELECT datum, detail FROM space_raw
+ORDER BY datum ASC
+LIMIT 50;
+```
+
+```SQL
+-- filter for Apollo 13 status_mission
+SELECT * FROM space_raw WHERE detail='Saturn V | Apollo 13'
+```
+
+```SQL
+-- filter for all Saturn missions
+SELECT * FROM space_raw WHERE detail LIKE 'Saturn%'
+```
+
+```SQL
+-- filter for all Saturn missions
+SELECT * FROM space_raw WHERE detail LIKE '%Apollo%'
+```
+
+```SQL
+-- reduce to company_name using count function
+SELECT
+  company_name,
+  count(*) as launches
+FROM space_raw
+GROUP BY company_name
+ORDER BY launches DESC
+```
+
+
+
+## Summary
+
+### Language
 
 * standardized language, that works across all relational systems
 
@@ -17,7 +73,7 @@ python -m hydenv examples space
 
 * everything you do to a database, you do in SQL. It's a common language for building up a database **and** using it.
 
-## Syntax
+### Syntax
 
 * SQL is **not** case sensitive
 
@@ -30,7 +86,7 @@ structure names (like table or database names)
 
 * SQL is type sensitive, thus the function `myFunction(5)` and `myFunction('five')` are two different functions.
 
-## Basic commands
+### Basic commands
 
 There are four basic commands for working with data:
 
@@ -50,7 +106,7 @@ In addition, the most important structural commands are:
 
 * `ALTER` to edit database objects
 
-## SELECT
+### SELECT
 
 The basic syntax to select is
 
@@ -70,18 +126,16 @@ SELECT * FROM tablename
 
 ### Filter
 
-To filter the datasets, use `WHERE`
+To filter the datasets, use `WHERE`. You can use the single equal sign for
+*exact matches*, where an attribute has to exactly match the given string.
+With `LIKE` you can filter by *partial matches* on string fields. Use `%` as a wildcard.
+`LIMIT` the results, to prevent PostgreSQL from returning everything, that matches a filter.
 
+```SQL
+SELECT * FROM space_raw where detail LIKE '%Sputnik%'
+```
 ```SQL
 SELECT * FROM space_raw WHERE detail = 'Saturn V | Apollo 13'
-```
-
-### LIMIT
-
-Limit the results, to prevent PostgreSQL from returning everything, that matches a filter.
-
-```SQL
-SELECT * FROM space_raw LIMIT 5
 ```
 
 ### Order
@@ -93,26 +147,20 @@ quickly access the largest, smallest values.
 SELECT * FROM space_raw ORDER BY datum ASC LIMIT 5
 ```
 
-### LIKE
-
-With `LIKE` you can filter by *partial matches* on string fields. Use `%` as a wildcard.
-
-```SQL
-SELECT * FROM space_raw where detail LIKE '%Sputnik%'
-```
-
 ### Aggregation
 
 You can aggregate result by grouping them on one or many columns using `GROUP BY`
-and then pass an aggregation function for all remaining (ungrouped) columns.
+and then reduce all remaining (ungrouped) columns to a scalar value.
 For available functions, search the documentation.
 
-```SQL
-SELECT
-  company_name,
-  count(*) as launches
-FROM space_raw
-GROUP BY company_name
-ORDER BY launches DESC
-LIMIT 5
-```
+The most important are:
+
+* avg   - mean value
+* min   - minimum value
+* max   - maximum value
+* sum   - sum of all values
+* count - number of values
+
+
+* date_part  - for `TIMESTAMP` data types; **extracts** the given date part
+* date_trunc - for `TIMESTAMP` data types; **truncates** to the given date part  

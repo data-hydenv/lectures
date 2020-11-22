@@ -1,5 +1,69 @@
 # Database normalization
 
+Use the `space_raw` table for this introduction. It is installed along with
+a clean installation of the hydenv database. If the table is not found, run:
+
+```
+python -m hydenv examples space
+```
+
+In case you don't want to run the SQL yourself, add the `--normalize` flag to
+the CLI call above and the CLI will normalize automatically.
+
+Below, you will find the SQL queries used in the video, followed by a summary of
+the lessions learned.
+
+
+## SQL commands in the video
+
+```SQL
+-- get all unique company names
+SELECT DISTINCT company_name FROM space_raw;
+```
+
+```SQL
+-- use a row count as the new id for primary key
+SELECT
+  row_number() OVER (ORDER BY company_name ASC) as company_id,
+  names.company_name AS name
+FROM (
+    SELECT DISTINCT company_name FROM space_raw
+) as names;
+```
+
+```SQL
+-- create the companies table
+DROP TABLE IF EXISTS companies CASCADE;
+CREATE TABLE companies AS
+SELECT
+  row_number() OVER (ORDER BY company_name) AS company_id,
+  t.company_name
+FROM (SELECT DISTINCT company_name FROM space_raw) t;
+ALTER TABLE companies ADD CONSTRAINT pkey_companies PRIMARY KEY (company_id);
+```
+
+```SQL
+-- get only the rocket name from the detail attribute
+SELECT split_part(detail, ' | ', 1) as rocket_name FROM space_raw;
+```
+
+
+```SQL
+-- create the rocket table
+DROP TABLE IF EXISTS rockets CASCADE;
+CREATE TABLE rockets AS
+SELECT row_number() OVER (ORDER BY t.rocket_name) AS rocket_id, t.rocket_name, is_active FROM
+(SELECT DISTINCT
+	split_part(detail, ' | ', 1) as rocket_name,
+ 	CASE WHEN status_rocket='StatusActive' THEN true ELSE false END as is_active
+ FROM space_raw) t;
+ALTER TABLE rockets ADD CONSTRAINT pkey_rockets PRIMARY KEY (rocket_id);
+```
+
+## Summary
+
+# Why normalizing?
+
 * the relational concept alone does not make a good database
 
 * a database is only as useful as the structure it represents

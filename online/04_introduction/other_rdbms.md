@@ -33,6 +33,8 @@ alternative to MySQL
 
 * has a Java compiler integrated (which is nice for Java applications)
 
+# Non- or not-only RDBMS
+
 ## Google Firebase
 
 * cloud based non-relational document database
