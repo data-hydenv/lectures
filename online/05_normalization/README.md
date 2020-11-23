@@ -11,7 +11,7 @@ In case you don't want to run the SQL yourself, add the `--normalize` flag to
 the CLI call above and the CLI will normalize automatically.
 
 Below, you will find the SQL queries used in the video, followed by a summary of
-the lessions learned.
+the lessons learned.
 
 
 ## SQL commands in the video
@@ -58,6 +58,53 @@ SELECT row_number() OVER (ORDER BY t.rocket_name) AS rocket_id, t.rocket_name, i
  	CASE WHEN status_rocket='StatusActive' THEN true ELSE false END as is_active
  FROM space_raw) t;
 ALTER TABLE rockets ADD CONSTRAINT pkey_rockets PRIMARY KEY (rocket_id);
+```
+
+```SQL
+SELECT DISTINCT split_part(location, ', ', 3), split_part(location, ', ', 4) FROM space_raw
+```
+
+```SQL
+SELECT DISTINCT
+CASE WHEN split_part(location, ', ', 4) ='' THEN
+		split_part(location, ', ', 3)  
+	ELSE
+		split_part(location, ', ', 4)
+	END as country
+FROM space_raw
+```
+
+```SQL
+DROP TABLE IF EXISTS locations CASCADE;
+CREATE TABLE locations AS
+SELECT row_number() OVER (ORDER BY identifier) AS location_id, t.* FROM
+(SELECT DISTINCT
+ 	split_part(location, ', ', 1) as identifier,
+ 	split_part(location, ', ', 2) as location_name,
+ 	CASE WHEN split_part(location, ', ', 4) = '' THEN null ELSE split_part(location, ', ', 3) END as state,
+ 	CASE WHEN split_part(location, ', ', 4) = '' THEN split_part(location, ', ', 3) ELSE split_part(location, ', ', 4) END AS country
+ FROM space_raw) t;
+ALTER TABLE locations ADD CONSTRAINT pkey_locations PRIMARY KEY (location_id);
+```
+
+```SQL
+DROP TABLE IF EXISTS space CASCADE;
+CREATE TABLE space AS
+SELECT
+	id, datum,
+	(SELECT company_id FROM companies WHERE company_name=space_raw.company_name) as company_id,
+	(SELECT location_id FROM locations WHERE
+	 	identifier=split_part(location, ', ', 1) AND
+	 	location_name=split_part(location, ', ', 2)
+	) as location_id,
+	(SELECT rocket_id FROM rockets WHERE rocket_name=split_part(detail, ' | ', 1)) as rocket_id,
+	split_part(detail, ' | ', 2) as mission_detail,
+	status_mission
+FROM space_raw;
+ALTER TABLE space ADD CONSTRAINT pkey_space PRIMARY KEY (id);
+ALTER TABLE space ADD CONSTRAINT fkey_space_location FOREIGN KEY (location_id) REFERENCES locations (location_id);
+ALTER TABLE space ADD CONSTRAINT fkey_space_rocket FOREIGN KEY (rocket_id) REFERENCES rockets (rocket_id);
+ALTER TABLE space ADD CONSTRAINT fkey_space_company FOREIGN KEY (company_id) REFERENCES companies (company_id);
 ```
 
 ## Summary

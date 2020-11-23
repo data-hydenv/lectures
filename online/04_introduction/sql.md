@@ -8,7 +8,7 @@ python -m hydenv examples space
 ```
 
 Below, you will find the SQL queries used in the video, followed by a summary of
-the lessions learned.
+the lessons learned.
 
 ## SQL commands in the video
 
