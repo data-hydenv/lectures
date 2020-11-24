@@ -61,7 +61,10 @@ ALTER TABLE rockets ADD CONSTRAINT pkey_rockets PRIMARY KEY (rocket_id);
 ```
 
 ```SQL
-SELECT DISTINCT split_part(location, ', ', 3), split_part(location, ', ', 4) FROM space_raw
+SELECT DISTINCT
+  split_part(location, ', ', 3) AS part_3,
+  split_part(location, ', ', 4) AS part_4
+FROM space_raw
 ```
 
 ```SQL
@@ -88,8 +91,8 @@ ALTER TABLE locations ADD CONSTRAINT pkey_locations PRIMARY KEY (location_id);
 ```
 
 ```SQL
-DROP TABLE IF EXISTS space CASCADE;
-CREATE TABLE space AS
+DROP TABLE IF EXISTS spaces CASCADE;
+CREATE TABLE spaces AS
 SELECT
 	id, datum,
 	(SELECT company_id FROM companies WHERE company_name=space_raw.company_name) as company_id,
@@ -101,10 +104,10 @@ SELECT
 	split_part(detail, ' | ', 2) as mission_detail,
 	status_mission
 FROM space_raw;
-ALTER TABLE space ADD CONSTRAINT pkey_space PRIMARY KEY (id);
-ALTER TABLE space ADD CONSTRAINT fkey_space_location FOREIGN KEY (location_id) REFERENCES locations (location_id);
-ALTER TABLE space ADD CONSTRAINT fkey_space_rocket FOREIGN KEY (rocket_id) REFERENCES rockets (rocket_id);
-ALTER TABLE space ADD CONSTRAINT fkey_space_company FOREIGN KEY (company_id) REFERENCES companies (company_id);
+ALTER TABLE spaces ADD CONSTRAINT pkey_space PRIMARY KEY (id);
+ALTER TABLE spaces ADD CONSTRAINT fkey_space_location FOREIGN KEY (location_id) REFERENCES locations (location_id);
+ALTER TABLE spaces ADD CONSTRAINT fkey_space_rocket FOREIGN KEY (rocket_id) REFERENCES rockets (rocket_id);
+ALTER TABLE spaces ADD CONSTRAINT fkey_space_company FOREIGN KEY (company_id) REFERENCES companies (company_id);
 ```
 
 ## Summary
