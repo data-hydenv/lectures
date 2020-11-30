@@ -1,13 +1,11 @@
 # Working with relations
-Use the `space_raw` table for this introduction. It is installed along with
-a clean installation of the hydenv database. If the table is not found, run:
+Use the `space` table for this introduction. The needed tables were
+created in the *Normalization* session. If you didn't follow that
+lecture, you can create the neccessary tables using the hydenv CLI.
 
 ```
-python -m hydenv examples space
+python -m hydenv examples space --normalize
 ```
-
-In case you don't want to run the SQL yourself, add the `--normalize` flag to
-the CLI call above and the CLI will normalize automatically.
 
 Below, you will find the SQL queries used in the video, followed by a summary of
 the lessons learned.
@@ -47,7 +45,59 @@ space WHERE location_id IN
 )
 ```
 
+```SQL
+-- use a subquery for selecting an attribute
+SELECT
+	datum,
+	mission_detail,
+	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) as company
+FROM
+space
+WHERE location_id IN
+(
+	SELECT location_id FROM locations
+	WHERE country='USA'
+)
+AND mission_detail LIKE '%GPS%'
+```
 
+```SQL
+-- group from a subquery
+SELECT
+	count(*) AS missions,
+	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' AS "serving years",
+	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) AS company
+FROM
+space
+WHERE location_id IN
+(
+	SELECT location_id FROM locations
+	WHERE country='USA'
+)
+AND mission_detail LIKE '%GPS%'
+GROUP BY company
+```
+
+```SQL
+-- Create a view from previous query
+DROP VIEW IF EXISTS gps_missions_from_usa;
+CREATE TEMPORARY VIEW gps_missions_from_usa AS
+SELECT
+	company_id,
+	count(*) AS missions,
+	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' AS "serving years",
+	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) AS company
+FROM
+space
+WHERE location_id IN
+(
+	SELECT location_id FROM locations
+	WHERE country='USA'
+)
+AND mission_detail LIKE '%GPS%'
+GROUP BY company, company_id;
+SELECT * FROM gps_missions_from_usa;
+```
 
 
 ## Summary
