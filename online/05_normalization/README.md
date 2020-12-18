@@ -114,6 +114,9 @@ ALTER TABLE locations ADD CONSTRAINT pkey_locations PRIMARY KEY (location_id);
 SELECT * FROM locations;
 ```
 
+### Normalization 05
+
+11:09
 ```SQL
 DROP TABLE IF EXISTS spaces CASCADE;
 CREATE TABLE spaces AS
@@ -132,6 +135,7 @@ ALTER TABLE spaces ADD CONSTRAINT pkey_space PRIMARY KEY (id);
 ALTER TABLE spaces ADD CONSTRAINT fkey_space_location FOREIGN KEY (location_id) REFERENCES locations (location_id);
 ALTER TABLE spaces ADD CONSTRAINT fkey_space_rocket FOREIGN KEY (rocket_id) REFERENCES rockets (rocket_id);
 ALTER TABLE spaces ADD CONSTRAINT fkey_space_company FOREIGN KEY (company_id) REFERENCES companies (company_id);
+SELECT * FROM spaces LIMIT 15;
 ```
 
 ## Summary
