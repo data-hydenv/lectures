@@ -16,21 +16,26 @@ the lessons learned.
 
 ## SQL commands in the video
 
+### Normalization 02
+
+2:07:
 ```SQL
 -- get all unique company names
 SELECT DISTINCT company_name FROM space_raw;
 ```
 
+4:52:
 ```SQL
 -- use a row count as the new id for primary key
 SELECT
-  row_number() OVER (ORDER BY company_name ASC) as company_id,
-  names.company_name AS name
+  row_number() OVER (ORDER BY company_name ASC) AS company_id,
+  names.company_name
 FROM (
     SELECT DISTINCT company_name FROM space_raw
 ) as names;
 ```
 
+9:15:
 ```SQL
 -- create the companies table
 DROP TABLE IF EXISTS companies CASCADE;
@@ -40,14 +45,26 @@ SELECT
   t.company_name
 FROM (SELECT DISTINCT company_name FROM space_raw) t;
 ALTER TABLE companies ADD CONSTRAINT pkey_companies PRIMARY KEY (company_id);
+SELECT * FROM companies;
 ```
 
+### Normalization 03
+
+2:55:
 ```SQL
 -- get only the rocket name from the detail attribute
 SELECT split_part(detail, ' | ', 1) as rocket_name FROM space_raw;
 ```
 
+6:20
+```SQL
+SELECT
+	split_part(detail, ' | ', 1) as rocket_name,
+ 	CASE WHEN status_rocket='StatusActive' THEN true ELSE false END as is_active
+ FROM space_raw
+```
 
+8:31
 ```SQL
 -- create the rocket table
 DROP TABLE IF EXISTS rockets CASCADE;
@@ -58,8 +75,12 @@ SELECT row_number() OVER (ORDER BY t.rocket_name) AS rocket_id, t.rocket_name, i
  	CASE WHEN status_rocket='StatusActive' THEN true ELSE false END as is_active
  FROM space_raw) t;
 ALTER TABLE rockets ADD CONSTRAINT pkey_rockets PRIMARY KEY (rocket_id);
+SELECT * FROM rockets LIMIT 15;
 ```
 
+### Normalization 04
+
+1:49:
 ```SQL
 SELECT DISTINCT
   split_part(location, ', ', 3) AS part_3,
@@ -67,6 +88,7 @@ SELECT DISTINCT
 FROM space_raw
 ```
 
+3:21:
 ```SQL
 SELECT DISTINCT
 CASE WHEN split_part(location, ', ', 4) ='' THEN
@@ -77,6 +99,7 @@ CASE WHEN split_part(location, ', ', 4) ='' THEN
 FROM space_raw
 ```
 
+6:29:
 ```SQL
 DROP TABLE IF EXISTS locations CASCADE;
 CREATE TABLE locations AS
@@ -88,6 +111,7 @@ SELECT row_number() OVER (ORDER BY identifier) AS location_id, t.* FROM
  	CASE WHEN split_part(location, ', ', 4) = '' THEN split_part(location, ', ', 3) ELSE split_part(location, ', ', 4) END AS country
  FROM space_raw) t;
 ALTER TABLE locations ADD CONSTRAINT pkey_locations PRIMARY KEY (location_id);
+SELECT * FROM locations;
 ```
 
 ```SQL
