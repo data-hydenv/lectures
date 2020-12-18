@@ -12,17 +12,23 @@ the lessons learned.
 
 ## SQL commands in the video
 
+### Relations 01
+
+1:03:
 ```SQL
 -- overview
-SELECT * FROM spaces
+SELECT * FROM spaces LIMIT 50
 ```
 
+2:40:
 ```SQL
 -- join another table
 SELECT * FROM spaces
 JOIN locations on locations.location_id=spaces.location_id
+LIMIT 50
 ```
 
+6:16:
 ```SQL
 -- aggregate over a join
 SELECT
@@ -35,6 +41,14 @@ GROUP BY l.country
 ORDER BY launches DESC
 ```
 
+### Relations 02
+
+2:56:
+```SQL
+SELECT location_id FROM locations WHERE country='USA'
+```
+
+3:58:
 ```SQL
 -- filter on a subquery
 SELECT * FROM
@@ -45,12 +59,31 @@ spaces WHERE location_id IN
 )
 ```
 
+### Relations 03
+
+2:57:
+```SQL
+-- get only missions started in USA from a sub-query
+SELECT
+	datum,
+	mission_name,
+	(SELECT company_name FROM companies WHERE companies.company_id=spaces.company_id) as company
+FROM
+spacess
+WHERE location_id IN
+(
+	SELECT location_id FROM locations
+	WHERE country='USA'
+)
+```
+
+3:49:
 ```SQL
 -- use a subquery for selecting an attribute
 SELECT
 	datum,
 	mission_name,
-	(SELECT company_name FROM companies WHERE companies.company_id=spacess.company_id) as company
+	(SELECT company_name FROM companies WHERE companies.company_id=spaces.company_id) as company
 FROM
 spacess
 WHERE location_id IN
@@ -61,6 +94,9 @@ WHERE location_id IN
 AND mission_name LIKE '%GPS%'
 ```
 
+### Relations 04
+
+4:40:
 ```SQL
 -- group from a subquery
 SELECT
@@ -78,6 +114,9 @@ AND mission_detail LIKE '%GPS%'
 GROUP BY company
 ```
 
+### Relations 05
+
+5:22:
 ```SQL
 -- Create a view from previous query
 DROP VIEW IF EXISTS gps_missions_from_usa;
