@@ -12,21 +12,29 @@ the lessons learned.
 
 ## SQL commands in the video
 
+### Introduction 01
+
+4:18:
 ```SQL
 -- count all rows
 SELECT count(*) FROM space_raw;
 ```
 
+5:26:
 ```SQL
 -- Get the first 5 rows
 SELECT * FROM space_raw LIMIT 5;
 ```
 
+6:10:
 ```SQL
 -- get the first 50 datum and detail information
 SELECT datum, detail FROM space_raw LIMIT 50;
 ```
 
+### Introuction 02
+
+1:07:
 ```SQL
 -- order by datum
 SELECT datum, detail FROM space_raw
@@ -34,21 +42,29 @@ ORDER BY datum ASC
 LIMIT 50;
 ```
 
+### Introduction 03
+
+1:16:
 ```SQL
 -- filter for Apollo 13 status_mission
 SELECT * FROM space_raw WHERE detail='Saturn V | Apollo 13'
 ```
 
+2:56:
 ```SQL
 -- filter for all Saturn missions
 SELECT * FROM space_raw WHERE detail LIKE 'Saturn%'
 ```
 
+3:50:
 ```SQL
 -- filter for all Saturn missions
 SELECT * FROM space_raw WHERE detail LIKE '%Apollo%'
 ```
 
+### Introduction 04
+
+3:15:
 ```SQL
 -- reduce to company_name using count function
 SELECT
