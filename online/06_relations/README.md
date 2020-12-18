@@ -1,10 +1,10 @@
 # Working with relations
-Use the `space` table for this introduction. The needed tables were
+Use the `spaces` table for this introduction. The needed tables were
 created in the *Normalization* session. If you didn't follow that
 lecture, you can create the neccessary tables using the hydenv CLI.
 
 ```
-python -m hydenv examples space --normalize
+python -m hydenv examples spaces --normalize
 ```
 
 Below, you will find the SQL queries used in the video, followed by a summary of
@@ -14,22 +14,22 @@ the lessons learned.
 
 ```SQL
 -- overview
-SELECT * FROM space
+SELECT * FROM spaces
 ```
 
 ```SQL
 -- join another table
-SELECT * FROM space
-JOIN locations on locations.location_id=space.location_id
+SELECT * FROM spaces
+JOIN locations on locations.location_id=spaces.location_id
 ```
 
 ```SQL
 -- aggregate over a join
 SELECT
 	l.country,
-	count(DISTINCT location_name) as space_ports,
+	count(DISTINCT location_name) as spaces_ports,
 	count(*) as launches
-FROM space s
+FROM spaces s
 JOIN locations l on l.location_id=s.location_id
 GROUP BY l.country
 ORDER BY launches DESC
@@ -38,7 +38,7 @@ ORDER BY launches DESC
 ```SQL
 -- filter on a subquery
 SELECT * FROM
-space WHERE location_id IN
+spaces WHERE location_id IN
 (
 	SELECT location_id FROM locations
 	WHERE country='USA'
@@ -49,16 +49,16 @@ space WHERE location_id IN
 -- use a subquery for selecting an attribute
 SELECT
 	datum,
-	mission_detail,
-	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) as company
+	mission_name,
+	(SELECT company_name FROM companies WHERE companies.company_id=spacess.company_id) as company
 FROM
-space
+spacess
 WHERE location_id IN
 (
 	SELECT location_id FROM locations
 	WHERE country='USA'
 )
-AND mission_detail LIKE '%GPS%'
+AND mission_name LIKE '%GPS%'
 ```
 
 ```SQL
@@ -66,9 +66,9 @@ AND mission_detail LIKE '%GPS%'
 SELECT
 	count(*) AS missions,
 	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' AS "serving years",
-	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) AS company
+	(SELECT company_name FROM companies WHERE companies.company_id=spaces.company_id) AS company
 FROM
-space
+spacess
 WHERE location_id IN
 (
 	SELECT location_id FROM locations
@@ -86,9 +86,9 @@ SELECT
 	company_id,
 	count(*) AS missions,
 	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' AS "serving years",
-	(SELECT company_name FROM companies WHERE companies.company_id=space.company_id) AS company
+	(SELECT company_name FROM companies WHERE companies.company_id=spaces.company_id) AS company
 FROM
-space
+spaces
 WHERE location_id IN
 (
 	SELECT location_id FROM locations

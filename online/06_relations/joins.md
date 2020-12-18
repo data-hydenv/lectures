@@ -1,10 +1,10 @@
 # Advanced JOINS
-Use the `space` table for this introduction. The needed tables were
+Use the `spaces` table for this introduction. The needed tables were
 created in the *Normalization* session. If you didn't follow that
 lecture, you can create the neccessary tables using the hydenv CLI.
 
 ```
-python -m hydenv examples space --normalize
+python -m hydenv examples spaces --normalize
 ```
 
 Below, you will find the SQL queries used in the video, followed by a summary of
@@ -19,26 +19,26 @@ SELECT * FROM gps_missions_from_usa;
 
 ```SQL
 -- implicit inner join
-SELECT * FROM space
-JOIN gps_missions_from_usa gps ON gps.company_id=space.company_id
+SELECT * FROM spacess
+JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
 ```SQL
 -- implicit inner join
-SELECT * FROM space
-JOIN gps_missions_from_usa gps ON gps.company_id=space.company_id
+SELECT * FROM spaces
+INNER JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
 ```SQL
 -- left join
-SELECT * FROM space
-LEFT JOIN gps_missions_from_usa gps ON gps.company_id=space.company_id
+SELECT * FROM spaces
+LEFT JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
 ```SQL
 -- right join
-SELECT * FROM space
-RIGHT JOIN gps_missions_from_usa gps ON gps.company_id=space.company_id
+SELECT * FROM spaces
+RIGHT JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
 ## Summary
