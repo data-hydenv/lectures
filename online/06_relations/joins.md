@@ -12,35 +12,52 @@ the lessons learned.
 
 ## SQL commands in the video
 
+1:45:
 ```SQL
 -- recall the view
 SELECT * FROM gps_missions_from_usa;
 ```
 
+2:35:
 ```SQL
 -- implicit inner join
 SELECT * FROM spacess
 JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
+4:12:
 ```SQL
 -- implicit inner join
 SELECT * FROM spaces
 INNER JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
+5:27:
 ```SQL
 -- left join
 SELECT * FROM spaces
 LEFT JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
+7:35:
 ```SQL
 -- right join
 SELECT * FROM spaces
 RIGHT JOIN gps_missions_from_usa gps ON gps.company_id=spaces.company_id
 ```
 
+9:53:
+```SQL
+SELECT * FROM spaces
+RIGHT OUTER JOIN
+(
+  SELECT * FROM gps_missions_from_usa gps
+  UNION
+  (SELECT 424242 AS company_id, 9999 AS missions, '42 years' AS "serving years", 'AAA' as company)
+) gps
+ON gps.company_id=spaces.company_id
+ORDER BY company ASC
+```
 ## Summary
 
 Consider again the JOIN from the lecture about
