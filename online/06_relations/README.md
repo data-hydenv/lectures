@@ -155,35 +155,6 @@ ways: **sub-queries**, **views** and **joins**.
 
 * If there are common attributes (like `id`, `name`), you need to specify which one to use, eg.: `tablename.attribute_name`
 
-#### Example
-
-Consider the example db from the [normalization lecture](../05_normalization/README.md):
-
-customers:
-
-| customer_id | art_id | store_id |
-|----|--------|------|
-| 3  | 3948573 | 1 |
-| 4  | 3902938 | 1 |
-| 5  | 3948573 | 2 |
-
-articles:
-
-| art_id | name |
-|--------|------|
-| 3948573 | socks |
-| 3902938 | pullover |
-
-To find out which customer ordered socks, we need to **join** the articles by `art_id` and **then** filter only
-the customers that ordered socks.
-
-```SQL
-SELECT
-  customer_id
-FROM customers
-JOIN articles ON articles.art_id=customers.art_id
-WHERE name='socks'
-```
 
 ### Sub-query
 
@@ -195,18 +166,6 @@ WHERE name='socks'
 
 * Sub-queries can also be used in filters
 
-#### Example
-
-Consider the same example from the **JOIN**s section.
-To find out who ordered `socks`, we need to first query the article id of socks
-and then filter the customer table with it.
-
-```SQL
-SELECT customer_id FROM customers WHERE art_id in (SELECT art_id FROM articles WHERE name='socks') AS t;
-```
-
-Joins are way more flexible and powerful. There is a whole
-optional section about [advanced joins](joins.md).
 
 ### Views
 
@@ -221,12 +180,3 @@ on the data.
 it is only executed at query time, potentially slowing down
 the whole query. On the other hand, it will always query the
 most recent values from tables with **dynamic** content.
-
-```SQL
-CREATE VIEW customers_loving_socks AS
-SELECT
-  customer_id, store_id
-FROM customers
-JOIN articles ON articles.art_id=customers.art_id
-WHERE articles.name='socks'
-```

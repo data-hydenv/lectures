@@ -54,7 +54,7 @@ Just connect and save data. (Thus rapid development possible)
 
 ## MongoDB
 
-* flagship of open-source non-relational document databases
+* flagship of open-source non-relational databases
 
 * easily scalable, but you have to do it on your own
 

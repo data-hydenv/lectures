@@ -148,5 +148,19 @@ SELECT
   ) AS distance
 FROM metadata
 ) as sub2
-ON sub1.meta_id=subb.id
+ON sub1.meta_id=sub2.id
 ```
+
+## Summary
+
+* PostGIS is a full featured GIS system
+
+* (Almost) anything you can do with QGis, can be done with PostGIS
+
+* On large datasets, PostGIS is often the only option. In the cloud, RAM and disk space is cheap, available and can be scaled in seconds.
+
+* Keep in mind that PostGIS won't do any on-the-fly reprojection, thus forcing you to program cleaner code
+
+* PostGIS is often favorable over local solutions as you are forced to implement your analysis as code. This is a huge advantage in terms of reproducability and maintenance
+
+* technically, PostGIS in PostgreSQL are just a set of functions and data types. Anything you learned about PostGIS functions can be applied to PostGIS. You can use them to create attributes, Order, filter and Join data.
