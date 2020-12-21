@@ -75,6 +75,9 @@ Anaconda as a Miniconda with a predefined environment. You can use both the same
 way. Anaconda has kind of every useful Python package already installed, while
 Miniconda is smaller.
 
+Installation instruction can also be found on [anaconda.com](https://anaconda.com).
+They look something similar to the commands shown below:
+
 ### Linux
 
 ```
@@ -111,8 +114,8 @@ pip install hydenv
 ```
 
 You may also find a compiled version for your OS in the Github repository:
-[https://github.com7data-hydenv/hydenv-database](https://github.com7data-hydenv/hydenv-database).
-Then, you just call the downloaded executable, instead of thePython module.
+[https://github.com/data-hydenv/hydenv-database](https://github.com/data-hydenv/hydenv-database).
+Then, you just call the downloaded executable, instead of the Python module.
 
 Example:
 To verify, that it's working by asking the tool for the help text.
@@ -127,3 +130,8 @@ As Windows executable:
 ```
 hydenv.exe --help
 ```
+
+Then, whenever you read `python -m hydenv` in the notes, or see it in the videos,
+replace it by `hydenv.exe`.
+Keep in mind, that this is a command line interface and it has to be called from
+the command line. No double-clicking.

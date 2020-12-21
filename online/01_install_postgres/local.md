@@ -20,7 +20,7 @@ sudo apt install postgresql postgresql-client postgis
 Luckily, on Windows there is a enterprise-edition installer that can be used
 to install Postgres. Installing from source directly is more complicated and in
 case the installer does not work, it's recommended to run a Linux virtual machine.
-Download the installer bundle from the [Postgesql website](https://www.postgresql.org/download/). Use a version `>= 10 && < 13`. Download the EDB
+Download the installer bundle from [https://www.postgresql.org/download/](https://www.postgresql.org/download/). Use a version `>= 10 && < 13`. Download the EDB
 installer, which also already includes PgAdmin4. Run the installer.
 
 * be sure to select the `StackBuilder` option during installation.

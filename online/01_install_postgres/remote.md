@@ -1,5 +1,10 @@
 # Remote installations
 
+**This is only reference documentation, you don't need the remote installation**.
+
+A local database server is nice for development, bu doesn't really help anything
+in real world projects. Then, you need to install the software on the server itself,
+or rent any kind of cloud database solution.
 For a remote installation of PostgreSQL, you first have to login to the remote
 machine via SSH and run the [local installation for Linux OS](local.md).
 
@@ -43,7 +48,7 @@ sudo systemctl restart postgresql
 On Windows, there is a PostgreSQL system icon and in the context menu you will find a
 restart option.
 
-## NOTE
+#### NOTE
 
 The shown changes of the configuration allows **anyone** to connect from
 **anywhere** to the PostgreSQL server. Thus, the only thing preventing others
@@ -54,7 +59,7 @@ be more restrictive in production systems.
 Usually, you will put some kind of REST middleware between incoming HTTP requests
 and database responses.
 
-## Development
+### Development
 
 There are cases when you need to run a remote PostgreSQL instance during development,
 because the productive system will be distributed on several machines.

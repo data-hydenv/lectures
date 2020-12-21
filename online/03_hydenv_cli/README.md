@@ -39,7 +39,11 @@ On Windows, you can open a command prompt with `[Win] + [R]`, or search for `cmd
 
 ## Create the database
 
-The recommended method is using the CLI here.
+The recommended method is using the CLI here. However, you can also install the
+database manually. But keep in mind that the cli will do more than just installing
+the database. In case you do not use it, you have to create tables and upload
+data on your own, which will drastically increase your workload. Therefore, install
+the CLI and get in touch if anything goes wrong.
 
 ### Use PgAdmin
 
@@ -140,7 +144,7 @@ can count one of the prefilled tables:
 python -m hydenv database execute --sql="SELECT count(*) as amount FROM terms"
 ```
 
-This should return something like: `(48,)`. 
+This should return something like: `(48,)`.
 
 ## Upload sample data
 

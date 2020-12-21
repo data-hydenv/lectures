@@ -16,4 +16,3 @@ and follow all instructions for Linux.
 
 * Instructions for [local machines](local.md)
 * Instructions for [remote machines](remote.md)
-* Instructions for [cloud machines](cloud.md)
