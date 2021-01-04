@@ -44,8 +44,14 @@ as distance
 -- Transform coordinates
 SELECT
   ST_Distance(
-      ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832),
-      ST_Transform(ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 25832)
+	ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+	),
+    ST_Transform(
+		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 
+		25832
+	)
   )
 as distance
 ```
@@ -55,8 +61,14 @@ as distance
 -- Transform coordinates into insufficient CRS
 SELECT
   ST_Distance(
-      ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 3857),
-      ST_Transform(ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 3857)
+      ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		3857
+      ),
+      ST_Transform(
+		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 
+		3857
+      )
   )
 as distance
 ```
@@ -69,7 +81,10 @@ as distance
 SELECT
 ST_Distance(
     ST_Transform(location, 25832),
-    ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832)
+    ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+    )
 )
 FROM metadata
 ```
@@ -79,7 +94,10 @@ FROM metadata
 SELECT
 ST_Distance(
     ST_Transform(location, 25832),
-    ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832)
+    ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+    )
 ) AS distance
 FROM metadata
 ORDER BY distance ASC
@@ -93,7 +111,10 @@ SELECT
   ST_EWKT(location) as "WKT",
 ST_Distance(
     ST_Transform(location, 25832),
-    ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832)
+    ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+	)
 ) AS distance
 FROM metadata
 ORDER BY distance ASC
@@ -110,7 +131,10 @@ SELECT
   ST_EWKT(location) as "WKT",
   ST_Distance(
       ST_Transform(location, 25832),
-      ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832)
+      ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+      )
   ) AS distance
 FROM raw_data r
 JOIN metadata m ON m.id=r.meta_id
@@ -143,8 +167,11 @@ SELECT
   id,
   ST_EWKT(location) as "WKT",
   ST_Distance(
-      ST_Transform(location, 25832),
-      ST_Transform(ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 25832)
+	ST_Transform(location, 25832),
+    ST_Transform(
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		25832
+	)
   ) AS distance
 FROM metadata
 ) as sub2

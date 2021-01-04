@@ -53,7 +53,13 @@ RIGHT OUTER JOIN
 (
   SELECT * FROM gps_missions_from_usa gps
   UNION
-  (SELECT 424242 AS company_id, 9999 AS missions, '42 years' AS "serving years", 'AAA' as company)
+  (
+	SELECT 
+		424242 AS company_id, 
+		9999 AS missions, 
+		'42 years' AS "serving years", 
+		'AAA' as company
+	)
 ) gps
 ON gps.company_id=spaces.company_id
 ORDER BY company ASC
