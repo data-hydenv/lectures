@@ -45,11 +45,11 @@ as distance
 SELECT
   ST_Distance(
 	ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
 	),
     ST_Transform(
-		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 
+		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326),
 		25832
 	)
   )
@@ -62,11 +62,11 @@ as distance
 SELECT
   ST_Distance(
       ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		3857
       ),
       ST_Transform(
-		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326), 
+		ST_SetSRID(ST_GeomFromText('POINT (7.853141 48.003268)'), 4326),
 		3857
       )
   )
@@ -82,7 +82,7 @@ SELECT
 ST_Distance(
     ST_Transform(location, 25832),
     ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
     )
 )
@@ -95,7 +95,7 @@ SELECT
 ST_Distance(
     ST_Transform(location, 25832),
     ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
     )
 ) AS distance
@@ -108,11 +108,11 @@ ORDER BY distance ASC
 -- combining information
 SELECT
   device_id,
-  ST_EWKT(location) as "WKT",
+  ST_AsEWKT(location) as "WKT",
 ST_Distance(
     ST_Transform(location, 25832),
     ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
 	)
 ) AS distance
@@ -128,11 +128,11 @@ ORDER BY distance ASC
 SELECT
   device_id,
   avg(r.value) as temperature,
-  ST_EWKT(location) as "WKT",
+  ST_AsEWKT(location) as "WKT",
   ST_Distance(
       ST_Transform(location, 25832),
       ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
       )
   ) AS distance
@@ -165,11 +165,11 @@ JOIN
 (
 SELECT
   id,
-  ST_EWKT(location) as "WKT",
+  ST_AsEWKT(location) as "WKT",
   ST_Distance(
 	ST_Transform(location, 25832),
     ST_Transform(
-		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'), 
+		ST_GeomFromEWKT('SRID=4326;POINT (7.852618 47.995554)'),
 		25832
 	)
   ) AS distance
