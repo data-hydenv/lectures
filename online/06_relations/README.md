@@ -68,13 +68,13 @@ SELECT
 	datum,
 	mission_name,
 	(
-		SELECT 
-			company_name 
-		FROM companies 
+		SELECT
+			company_name
+		FROM companies
 		WHERE companies.company_id=spaces.company_id
 	) as company
 FROM
-spacess
+spaces
 WHERE location_id IN
 (
 	SELECT location_id FROM locations
@@ -89,13 +89,13 @@ SELECT
 	datum,
 	mission_name,
 	(
-		SELECT 
-			company_name 
-		FROM companies 
+		SELECT
+			company_name
+		FROM companies
 		WHERE companies.company_id=spaces.company_id
 	) as company
 FROM
-spacess
+spaces
 WHERE location_id IN
 (
 	SELECT location_id FROM locations
@@ -111,16 +111,16 @@ AND mission_name LIKE '%GPS%'
 -- group from a subquery
 SELECT
 	count(*) AS missions,
-	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' 
+	round(date_part('days', max(datum) - min(datum)) / 365) || ' years'
 		AS "serving years",
 	(
-		SELECT 
-			company_name 
-		FROM companies 
+		SELECT
+			company_name
+		FROM companies
 		WHERE companies.company_id=spaces.company_id
 	) AS company
 FROM
-spacess
+spaces
 WHERE location_id IN
 (
 	SELECT location_id FROM locations
@@ -140,12 +140,12 @@ CREATE TEMPORARY VIEW gps_missions_from_usa AS
 SELECT
 	company_id,
 	count(*) AS missions,
-	round(date_part('days', max(datum) - min(datum)) / 365) || ' years' 
+	round(date_part('days', max(datum) - min(datum)) / 365) || ' years'
 		AS "serving years",
 	(
-		SELECT 
-			company_name 
-		FROM companies 
+		SELECT
+			company_name
+		FROM companies
 		WHERE companies.company_id=spaces.company_id
 	) AS company
 FROM
