@@ -37,7 +37,7 @@ jobs:
         uses: lucharo/rmarkdown-action@v1
         with:
           input_file: presence/introduction_sql.Rmd
-          output_format: html
+          output_format: html_document
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         
