@@ -39,7 +39,7 @@ jobs:
           input_file: presence/introduction_sql.Rmd
           output_format: html
         env:
-        - POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v1
