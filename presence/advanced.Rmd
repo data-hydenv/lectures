@@ -1,12 +1,11 @@
 ---
 title: "Advanced SQL Techniques"
-description: |
-  Learn in depth database structuring with SQL.
+description: "Learn in depth database structuring with SQL."
 author:
-  - name: Mirko Mälicke
-    url: https://hyd.iwg.kit.edu/personen_maelicke.php
-    affiliation: Karlsruhe Institute for Technology (KIT)
-    affiliation_url: https://hyd.iwg.kit.edu
+  - name: "Mirko Mälicke"
+    url: "https://hyd.iwg.kit.edu/personen_maelicke.php"
+    affiliation: "Karlsruhe Institute for Technology (KIT)"
+    affiliation_url: "https://hyd.iwg.kit.edu"
 date: "`r Sys.Date()`"
 output:  
   html_document:
@@ -22,9 +21,9 @@ output:
   pdf_document:
     toc: yes
 ---
-```{r setup, include=True}
-knitr::opts_chunk$set(echo = FALSE)
 
+```{r setup, include=FALSE}
+#knitr::opts_chunk$set(echo = FALSE)
 # require the package
 if (!("RPostgreSQL" %in% installed.packages())){
   install.packages("RPostgreSQL")
@@ -32,121 +31,179 @@ if (!("RPostgreSQL" %in% installed.packages())){
 if (!("getPass" %in% installed.packages())){
   install.packages("getPass")
 }
-require(RPostgreSQL)
-require(getPass)
-require(ggplot2)
-require(dplyr)
+if (!("dplyr" %in% installed.packages())){
+  install.packages("dplyr")
+}
+if (!("ggplot2" %in% installed.packages())){
+  install.packages("ggplot2")
+}
+library(RPostgreSQL)
+library(getPass)
+library(ggplot2)
+library(dplyr)
+
+
+pw <- function () {
+  if (Sys.getenv('POSTGRES_PASSWORD') == ""){
+    return(getPass('Provide the password: '))
+  } else {
+    return(Sys.getenv('POSTGRES_PASSWORD'))
+  }
+}
 
 # establish the connection
 drv <- dbDriver('PostgreSQL')
-con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
-                 password=getPass('Provide the password'), dbname='datamanagement')
+con <- dbConnect(drv, host='hydenv.hydrocode.de', port=5432, user='hydenv', 
+                 password=pw(), dbname='hydenv')
 ```
 
 # Temporarily creating objects
 
 Especially for development and data analysis tasks it is very useful to create temporary results. This saves a lot of time and will keep
- your database clean as you do not have to remember which objects were only intermediate and can be droped.
+ your database clean as you do not have to remember which objects were only intermediate and can be dropped.
 The SQL language knows the <span style="color:blue">TEMPORARY</span> keyword, which can be used along with <span style="color:blue">CREATE</span> statements. 
-This is most often used on the creation of tables and views. The temporary tables can be used just like persistent tables, but once you close the connection used for creation, the table will automatically be droped. This can save you from a lot of cleanup work. 
+This is most often used on the creation of tables and views. The temporary tables can be used just like persistent tables, but once you close the connection used for creation, the table will automatically be dropped. This can save you from a lot of cleanup work. 
 
 <div class="alert alert-warning">Some SQL clients open and close a connection on each command issued in order to keep the number of connection small and prevent the user from keeping open connections. You will have to change the settings or the tool in case you want to use temporary object using these tools.</div>
 <hr>
-The structure of our raw_data table is not normalized. The main reason is that there are more than one actual measuring value stored in one record. In our specific case this makes sense, as there are only two variables and they always come together. We are only using one kind of sensor, that did also prevent us from creating a sensor lookup table.
-However, in real world applications you will usually have to store that kind of metadata. There are sensors measuring only one variable and they are installed at specific locations, like stations, which come with their own metadata. Sensors might break and get replaced by other devices than used before. 
-A common way to store timeseries data is to put each and every measurement into its own record and describe it by a lookup table, which describes the used sensor, a lookup table describing the variable and another one describing the data quality.
-This structure might feel strange but is very common to save timeseries data. It is performant, flexible and easy to maintain and extend.
-These advantages come at the trade-off of a bit more complex structure and hence more complicated queries. 
+The structure of our `raw_data` table is normalized. If this makes sense for the database used in the lecture is questionable and can be discussed. In productive use-cases, this is very common. 
+
+<div class="alert alert-info">To recap: A normalized data-tabe here means, you can save any kind of numeric information into a single relation. You only have a (compound) primary key and the main value. Lookup tables are used to describe the data values and link information like location or observed variable to the base numbers.</div>
+
+To transition normalized data from a general purpose data management system into something like an *application scheme*, there are number of possible patterns.
+A common way to is to put each and every observation type into its own relation and describe it by a lookup table, which describes the mandatory metadata. This can be extended by an optional, or variable-specific second metadata lookup table.
+This might seem strange, but it very flexible, easy to maintain and depending on the implementation extremely performant.
 But one step after the other. 
 
 ## Creating a new structure
 
-Let's implement a structure like this in a temporary table.
+There are two structures that can help use here: <span style="color:blue">VIEW</span> and <span style="color:blue">TABLE</span>, both can be created only temporary.
+
+### Explicit CREATE
+
+Let's first have a look at the variables table to decide, which kind of data should be *un-normalized*.
 ```{sql connection=con}
-create temporary table variables (
-id integer primary key,
-name varchar (255) not null,
-unit varchar (255)
-)
+SELECT * FROM variables
 ```
 
-Insert two records for the two measured variables:
-```{sql connection=con}
-insert into variables (id, name, unit) values (1, 'temperature', 'deg. C'), (2, 'light', 'lux or whatever')
-```
-
-And verify the results:
-```{sql connection=con}
-select * from variables
-```
-
-Another, very handy way of creating a table is to store the result of a query into a new table. We can use this to to create the new temporary data table.
+We will first focus first on the temporary table for temperature and light.
 
 ```{sql connection=con}
-create temporary table data_extended as
-select hobo_id, tstamp, temperature as value, 1 as variable_id from raw_data
+create temporary table temperature (
+  meta_id integer,
+  tstamp timestamp without time zone,
+  value real not null,
+  PRIMARY KEY (meta_id, tstamp)
+);
 ```
 
-Now, all the temperature values are in this new table. We can insert from a select as well.
+Next, we need to issue an <span style="color:blue">INSERT</span> for each record we want to see in this new table. 
+If you are already familiar with programming languages, you might already loop in your mind over the `raw_data` table and add the needed data one-by-one into the `temperature` data. The big advantage of relational database systems is, that they are truely vectorized and we can just specify how the data should transition, the database engine will apply our extression to the **whole** relation at once.
+
 ```{sql connection=con}
-insert into data_extended
-select hobo_id, tstamp, light as value, 2 as variable_id from raw_data
+INSERT INTO temperature 
+SELECT meta_id, tstamp, value FROM raw_data WHERE variable_id=1
 ```
 
-Finally, there should be twice as many records in the new table.
 ```{sql connection=con}
-select 'raw_data' as "table", count(*) as records from raw_data
-union
-select 'extended' as "table", count(*) as records from data_extended
+SELECT count(*) FROM temperature
 ```
 
-## Working with data
+### Implicit CREATE
 
-One of the main advantages is that our metadata model can easily be extended. We can add more attributes to the variable information, add quality measures or even further discriminate the sensor without having to touch the data table. Once this table grows in size, or has to be available in real time as other application depend on it, this is big advantage.
-As set out before, we buy this flexibility and performance gains at the cost of query complexity.<br>
-The next structure we want to use is the view. A view is like a persistant <span style="color: blue">SELECT</span> query that will be rerun each time you try to query the results. 
-Here, temporary tables or views can get quite powerful. It will behave like a dynamic table with the only difference of being not editable. From a performance point of view, a view is not capable of indices, which can make it way slower than a table. On the other hand a view is just a stored query that will be executed on each query and therefore will not take any disk space and update automatically<br>
- Let's create a temporary view on temperature data only.
+For larger tables it can be quite tedious to define each table and column by hand. Especially for temporary tables which are not persisted at all. You might have noticed, that the two new tables will not only look very alike, but also have some similarities to the `raw_data` table. Luckily, SQL is really flexible as it can create structures from query results. That means, we can select the light data from `raw_data` and create a new table **with** the data already contained in one step.
+
+You can literally turn any query result into a table.
+
+```{sql connection=con}
+CREATE temporary TABLE light AS
+SELECT meta_id, tstamp, value FROM raw_data WHERE variable_id=2
+```
+
+
+```{sql connection=con}
+SELECT count(*) from light
+```
+Now, let's just load the data to R and plot it. You can change the id to your HOBO.
+
+```{sql connection=con, output.var="df"}
+SELECT * FROM temperature WHERE meta_id = 123
+```
+```{r}
+df %>%
+  ggplot(aes(x=tstamp, y=value)) + 
+  geom_line(color='red', linewidth=2)
+```
+
+
+
+## Data Views
+
+### Re-creating temporary tables
+
+A major drawback of the creating new tables, even temporary ones, is that we effectively doubled the footprint of our data application in terms of disk space, as we stored all measurements twice. Additionally, we might run into data integrity issues in use-cases involving highly dynamic data operations. The `raw_data` might be updated, before we are finished working with the `temperature` table. Then, the `temperature` is **not** updated along, which might be the intended behavior, but is usually not.<br>
+To overcome these drawbacks, we can use a structure called <span style="color:blue">VIEW</span>, which might be created persistent or temporary. A view is like a persistent <span style="color: blue">SELECT</span> that will be rerun each time you query the results. 
+Here, temporary tables or views can get quite powerful. It will behave like a dynamic table with the only difference that you can't edit it. From a performance point of view, a view is not capable of indices, which can make it substantially slower than a table. On the other hand a view is just a stored query that will be executed on each query and therefore will not take any disk space and update automatically. For the HOBO data, this seems to be the more suitable solution.<br>
+
+We can go ahead and create the views, unfortunately, we will run into an error:
 ```{sql connection=con}
 create temporary view temperature as
-select hobo_id, tstamp, value as temperature from data_extended where variable_id=1
+select meta_id, tstamp, value as temperature from raw_data where variable_id=1
 ```
+
+We can go ahead and close the connection to the database, this will drop the temporary tables. When re-opening, we should be able to create the views without any naming conflicts:
+
+```{r}
+dbDisconnect(con)
+con <- dbConnect(drv, host='hydenv.hydrocode.de', port=5432, user='hydenv', 
+                 password=pw(), dbname='hydenv')
+```
+```{sql connection=con}
+create temporary view temperature as
+select meta_id, tstamp, value as temperature from raw_data where variable_id=1
+```
+
+That worked without naming error so far. Let's checkout the data:
 ```{sql connection=con}
 select * from temperature limit 5
 ```
 
-We can also create a view on a view, for example calculating current daily indices:
+### Analytical and statistical views.
+
+So far, we used temporary tables and views only to safe us from typing a simple filter statement. Although this is already a valid justification and there are definitely use-cases, like easier data download in applications, the effort was not really worth it up to this point.
+The true power of views is to persist more complex statistical reductions or even analysis workflow steps as sensible data views. These can be chained together and make development and debugging esier, or, additionally, are even a useful insight on their own.
+Let's create a view on a view, for example calculating current daily indices:
 ```{sql connection=con}
 create temporary view temperature_indices as
-select hobo_id, 
+select meta_id, 
   date_trunc('day', tstamp) as date, 
   avg(temperature) as mean, 
   min(temperature) as min, 
   max(temperature) as max
 from temperature
-group by hobo_id, date
+group by meta_id, date
 ```
 ```{sql connection=con}
 select * from temperature_indices order by date desc limit 5
 ```
 
-This could also be caluclated for the day measurements only, by simply adding a filter.
+This could also be calculated for the day measurements only, by simply adding a filter.
 ```{sql connection=con}
 create temporary view day_temperature_indices as
-select hobo_id, 
+select meta_id, 
   date_trunc('day', tstamp) as date, 
   avg(temperature) as mean, 
   min(temperature) as min, 
   max(temperature) as max
 from temperature
 where date_part('hour', tstamp) <= 8 and date_part('hour', tstamp) <= 18
-group by hobo_id, date
+group by meta_id, date
 ```
 ```{sql connection=con}
 select * from day_temperature_indices order by date desc limit 5
 ```
 
-This is a great overview table for doing some in-depth analysis of the day or night temperature. Once you streamed your results into R, a persistant table or any kind of text-based file, you can just close the database connection and all temporary tables and views will be dropped.
+This is a great overview table for doing some in-depth analysis of the day or night temperature. Once you streamed your results into R, a persistent table or any kind of text-based file, you can just close the database connection and all temporary tables and views will be dropped. The next time you run the script again, the views will automatically use the updated base data.
 
 ```{sql connection=con, output.var="temperature"}
 select * from temperature_indices
@@ -156,29 +213,32 @@ select * from day_temperature_indices
 ```
 ```{r}
 temperature %>%
-  filter(date > '2017-06-01') %>%
+  filter(date > '2020-11-01' & date < '2021-02-1') %>%
   ggplot(aes(x=date, y=mean)) + 
-  geom_line(color='brown', size=2)
+  geom_point(color='brown')
 
 temperature.day %>%
-  filter(date > '2017-06-01') %>%
+  filter(date > '2020-11-01' & date < '2021-02-1') %>%
   ggplot(aes(x=date, y=mean)) + 
-  geom_line(color='red', size=2)
+  geom_point(color='red', alpha=0.8)
 
 ```
 
 Maybe combine it somehow...
 ```{r}
 full_join(temperature, temperature.day, by='date') %>%
-  filter(date > '2017-06-01') %>%
+  filter(date > '2020-11-01' & date < '2021-02-1') %>%
   ggplot(aes(x=date, y=value)) +
-  geom_line(aes(y=mean.x), color='red', size=2, alpha=0.6) + 
-  geom_line(aes(y=mean.y), color='blue', size=1, alpha=0.8)
+  geom_point(aes(y=mean.x), color='brown', size=3, alpha=0.2) + 
+  geom_point(aes(y=mean.y), color='salmon', size=1, alpha=0.3)
 
 ```
 
-<div class="alert alert-success">Before you continue, play around with these objects a little bit. You should get a good feeling for whether to use temporary object or not. You could for example create another view that holds the exact same information but only for night temperatures.
+<div class="alert alert-success">Before you continue, play around with these objects a little bit. You should get a good feeling for whether to use temporary objects or not. You could for example create another view that holds the exact same information but only for night temperatures.
 </div>
+
+You should use this example to get a feeling for the interplay of R and PostgreSQL. Obviously, you could also load the full data table and then implement the reducers in R only. With libraries like `tibble` and `dplyr`, you are perfectly equipped for tasks like this. You need to find a way, that feels comfortable for you, but also think about technical implications, like processing times, network load, memory usage and scalability, which might limit you.
+The other way around, it is of course also possible, to implement the last step of combining both indices tables in SQL. The concept, which is called `full_join` in dplyr is actually borrowed from SQL and will be discussed in the next section. In fact, JOINs are the most important and most fundamental concept behind **relational** database and kind of giving them their names.    
 
 # Joins
 ## chaining Joins
