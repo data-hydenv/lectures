@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo = FALSE)
 # Install the packages
 
 You can manipulate and query a [PostgreSQL](https://www.postgresql.org/) database from within R. The Package *RPostgreSQL* offers a high level binding and some helpful querying functions for handling a PostgreSQL instance. This database system is especially helpful in case you want to handle geodata as it includes a full featured GIS system in the extension [PostGIS](http://postgis.net/).
-At the same time, PostgreSQL can be tuned to be a high performance database system, which makes it extemely help- and powerful for hydrologists as we have both: geodata and huge (complex) data amounts. Last but not least, PostGIS is working very well with QGis, GRASS or SAGA GIS and some GIS Web Servers like Geoserver or Mapserver. This makes the R / Python - PostgreSQL - Online/Offline GIS stack maybe the most powerful software stack for (geo)data science.<br>
+At the same time, PostgreSQL can be tuned to be a high performance database system, which makes it extemely help- and powerful for environmental and atmospherical scientist we have both: geodata and huge (complex) data amounts. Last but not least, PostGIS is working very well with QGis, GRASS or SAGA GIS and some GIS Web Servers like Geoserver or Mapserver. This makes the R / Python - PostgreSQL - Online/Offline GIS stack maybe the most powerful software stack for (geo)data science.<br>
 First, install and load the library.
 
 ```{r, echo=FALSE}
@@ -39,8 +39,8 @@ if (!("RPostgreSQL" %in% installed.packages())){
 if (!("getPass" %in% installed.packages())){
   install.packages("getPass")
 }
-require(RPostgreSQL)
-require(getPass)
+library(RPostgreSQL)
+library(getPass)
 ```
 
 # Connection 
@@ -48,9 +48,16 @@ require(getPass)
 RPostgreSQL is build like most other database drivers, across languages. This means in most cases it does not matter which kind of RDBMS you want to connect to and from which language. Connecting to PostgreSQL from R works a lot like connecting SQLite from Pyhton or MySQL from C++. First, you need a driver. This class instance defines the database system you want to talk to and is meant to be a layer between your abstract R classes and the RDBMS specific SQL code. This driver can then be used to build a connection object to a specific database instance (like the one we will be using). Changing the connection to another instance will enable you to run the exact same code on more than one machine. After you are finished, the connection has to be closed again, in order to free these resources on the server.
 
 ```{r}
+pw <- function () {
+  if (Sys.getenv('POSTGRES_PASSWORD') == ""){
+    return(getPass('Provide the password: '))
+  } else {
+    return(Sys.getenv('POSTGRES_PASSWORD'))
+  }
+}
 drv <- dbDriver('PostgreSQL')
-con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
-                 password=getPass('Provide the password'), dbname='datamanagement')
+con <- dbConnect(drv, host='hydenv.hydrocode.de', port=5432, user='hydenv', 
+                 password=pw(), dbname='hydenv')
 
 ```
 
@@ -70,55 +77,61 @@ As a first exercise, we want to see which tables are available.
 dbListTables(con)
 ```
 
-You can find the 'hobo' table with all the HOBO sensor usages from the last years and a 'raw_data' table containing the measurements.
-Load the hobo table to a R data.frame:
+You can find the `metadata` table with all the HOBO sensor usages from the last years and a `raw_data` table containing the measurements.
+Load the metadata table to a R data.frame:
 ```{r}
-hobo <- dbReadTable(con, 'hobo')
+hobo <- dbReadTable(con, 'metadata')
 hobo
 ```
 
 We will head to the unrecognized column later on. At first, let's add a arbitrary hobo sensor and remove it again. Remember, that you have to preserve the table structure. The most easiest approach is therefore to append a new row to the just created data frame. Ignore the last value for now. Lastly, it is important to set the 'append' flag, in order to append the data to the end of the table.
 
 ```{r}
-import <- data.frame(id=9999, hobo_id=999999, radiation_influence="high",geom="SRID=4326;POINT(7.8 48.0)", description="deleteme", year=9999)
+import <- data.frame(id=9999, device_id=999999, sensor_id=4, term_id=5, location="SRID=4326;POINT(7.8 48.0)", description="deleteme")
 names(import) <- names(hobo)
-dbWriteTable(con, 'hobo', import, append=TRUE, row.names=FALSE)
+dbWriteTable(con, 'metadata', import, append=TRUE, row.names=FALSE)
 ```
+
+You also need to make sure, that the data is set in the correct order, as we set the headers using the `names` function. Thus, it is usually best practice to `View` data tables before you upload them. Additionally, especially when operating on productive systems, it is good practive to upload into temprary tables and only copy data to productive tables after some automated checks on data integrety were issued.
 
 # Executing SQL
 
-In order to check, wether our data reached the database, we will create our own custom SQL query to ask the database for exactly that row. We will go into more details of the SQL language in the Introductory SQL notebook. That means you do not have to understand each part of the query at this moment. Concentrate more on the technique of sending queries. As we are asking for data, we cannot use the *dbExecute* method, as this does not fetch possible results. Therefore we have to use the *dbGetQuery* function here, as this one will fetch the results.<br>
+In order to check, whether our data reached the database, we will create our own custom SQL query to ask the database for exactly that row. We will go into more details of the SQL language in the Introductory SQL notebook. That means you do not have to understand each part of the query at this moment. Concentrate more on the technique of sending queries. As we are asking for data, we cannot use the *dbExecute* method, as this does not fetch possible results. Therefore we have to use the *dbGetQuery* function here, as this one will fetch the results.<br>
 
 <div class="alert alert-warning">Under the hood fetching the result from the connection is a multistep process. First, the SQL has to be executed in the database. Then, the connection has to be flushed. Next, the response from the DB server is cached and is finally converted from a raw bytes objects to a R object.</div>
 
 ```{r}
-sql <- 'Select * from hobo where id=9999'
+sql <- 'Select * from metadata where id=9999'
 dbGetQuery(con, sql)
 ```
 
 There are two interesting things to notice here:
 <ol>
   <li>The geometry column got somehow converted. It was stated that you do not have to understand this input, but the returned values are definitely different.</li>
-  <li>Executing SQL is quite straitforward. We are now able to come up with literally any manipulation, filter or selection we wish.</li>
+  <li>Executing SQL is quite straightforward. We are now able to come up with literally any manipulation, filter or selection we wish.</li>
 </ol>
-RStudio Markdown files are also a great way of working with databases. Beside a code chunk in R, it can also handle SQL chunks. All we need is the dbConnection object referenced in the 'con' variable. All we need to do, is placing the SQL directly into the chunk and RStudio will do the rest for us. <br>
-Although this makes coding on databases easy and improves the readability of the file, be aware of the actual commands executed here in case you ever have to build a script without RStudio or debug one. Do not get too dependend on a specific IDE, even if it's a great IDE. In real world applications, R is usually not the language to be used to database management. It's either a specific IDE, C++ or Python.<br>
+
+On the frontend, RMarkdown files within RStudio are a neat way of reading and writing databases. 
+Beside a code chunk in R, it can also handle SQL chunks, which removes some of the boilerplate. When building reports or in scientific communications, this is a good way to integrate databases for people without particular knowledge of databases.
+All we need is the dbConnection object referenced in the 'con' variable. All we need to do, is placing the SQL directly into the chunk and RStudio will do the rest for us. <br>
+Although this makes coding on databases easy and improves the readability of the file, be aware of the actual commands executed here in case you ever have to build a script without RStudio or debug one. Today, this is the case for literally any other use-case. Do not get too dependent on a specific IDE, even if it's a great IDE. In real world applications, R is usually not the language to be used to database management. It's either a specific IDE, C++, Java, Typescript or Python.<br>
 However, the code from the last chunk could also be run like:
 
 ```{sql connection=con}
-select * from hobo where id=9999
+select * from metadata where id=9999
 ```
 
 This leads to exactly the same result, while we can concentrate on the SQL language. Lastly, we will remove the created line again as this station does not really exist. The <span style='color:blue'>DELETE</span> statement follows the same syntax as <span style='color:blue'>SELECT</span>.<br>
+
 <div class="alert alert-danger"><span class="glyphicon glyphicon-exclamation-sign" aria-hidden="True"></span> **CAUTION**: Be absolutely sure about your statement as SQL does not ask if you really want to delete data. It will just be gone. Without a WHERE clause, the whole table will be deleted!</div>
 
 ```{sql connection=con}
-delete from hobo where id=9999
+delete from metadata where id=9999
 ```
 
 Now, the HOBO should be gone and running the same query as above should not yield any resutls.
 ```{sql connection=con}
-select * from hobo where id=9999
+select * from metadata where id=9999
 ```
 
 # Closing the connection
