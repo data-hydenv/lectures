@@ -98,7 +98,7 @@ create temporary table temperature (
 ```
 
 Next, we need to issue an <span style="color:blue">INSERT</span> for each record we want to see in this new table. 
-If you are already familiar with programming languages, you might already loop in your mind over the `raw_data` table and add the needed data one-by-one into the `temperature` data. The big advantage of relational database systems is, that they are truely vectorized and we can just specify how the data should transition, the database engine will apply our extression to the **whole** relation at once.
+If you are already familiar with programming languages, you might already loop in your mind over the `raw_data` table and add the needed data one-by-one into the `temperature` data. The big advantage of relational database systems is, that they are truly vectorized and we can just specify how the data should transition, the database engine will apply our expression to the **whole** relation at once.
 
 ```{sql connection=con}
 INSERT INTO temperature 
@@ -226,11 +226,11 @@ temperature.day %>%
 
 Maybe combine it somehow...
 ```{r}
-full_join(temperature, temperature.day, by='date') %>%
+left_join(temperature, temperature.day, by=c('meta_id', 'date')) %>%
   filter(date > '2020-11-01' & date < '2021-02-1') %>%
-  ggplot(aes(x=date, y=value)) +
+  ggplot(aes(x=date, y=mean.x)) +
   geom_point(aes(y=mean.x), color='brown', size=3, alpha=0.2) + 
-  geom_point(aes(y=mean.y), color='salmon', size=1, alpha=0.3)
+  geom_point(aes(y=mean.y), color='orange', size=1, alpha=0.5)
 
 ```
 
@@ -241,169 +241,165 @@ You should use this example to get a feeling for the interplay of R and PostgreS
 The other way around, it is of course also possible, to implement the last step of combining both indices tables in SQL. The concept, which is called `full_join` in dplyr is actually borrowed from SQL and will be discussed in the next section. In fact, JOINs are the most important and most fundamental concept behind **relational** database and kind of giving them their names.    
 
 # Joins
-## chaining Joins
-This section will give some more insights on <span style="color:blue">JOINS</span>. It will cover different types of JOINS and how to chain a JOIN. 
-Quite often you will find yourself in a situation, where you have to join a lookup table to a table of interest 
-and this lookup table is itself described by another lookup table. 
-Querying these structures is fairly straightforward as you can just chain joins together. 
-This can be demonstrated by the vegetation_cover table
+## re-creating the example
+This section will give some more insights on <span style="color:blue">JOINS</span>. It will cover different types of JOINS and how to use multiple joins at once.
+First, we can implement the join done with R from the last example with SQL:
 
-```{sql connection=con}
-select * from hobo h
-join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom)
-join vegetation_cover_description vd on vd.id=vc.description_id 
+```{sql connection=con, output.var="combined"}
+select 
+  all_idx.meta_id, all_idx.date, all_idx.mean as "mean.all", day_idx.mean as "mean.day" 
+FROM temperature_indices as all_idx
+JOIN day_temperature_indices as day_idx on day_idx.meta_id=all_idx.meta_id and day_idx.date=all_idx.date
+WHERE all_idx.date > '2020-11-01' and all_idx.date < '2021-02-1'
+
+```
+```{r}
+View(combined)
+```
+```{r}
+combined %>%
+  ggplot(aes(x=date, y=mean.all)) +
+  geom_point(aes(y=mean.all), color='brown', size=3, alpha=0.2) + 
+  geom_point(aes(y=mean.day), color='orange', size=1, alpha=0.5)
 ```
 
-Now, we could join this result to the data table and make all this meta data available to every measurement record. 
-This will obviusly take some time. 
-In this case you are not interested in the full meta_data record but just in a subset. Of course we want to come up with a fast solution.
-<br> Let's build two different Views producing the same output.
+## joining tables
 
+Maybe you have wondered, why not all of the metadata about the hobos was visible when we worked on that table. Some of the more optional metadata is moved into yet another table called `details`. Let's have a look at that table.
 ```{sql connection=con}
-create temporary view join_then_filter as
-select d.tstamp, d.value, h.hobo_id, v.name as variable, v.unit, vd.description as vegetation from data_extended d
-join hobo h on h.hobo_id=d.hobo_id
-join variables v on d.variable_id=v.id
-join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom)
-join vegetation_cover_description vd on vd.id=vc.description_id 
-where v.id=1 and h.geom is not null and year=2018
+SELECT * from details LIMIT 5
 ```
+That looks weird. Which keys are available?
 ```{sql connection=con}
-create temporary view filter_then_join as
-select d.tstamp, d.value, h.hobo_id, v.name as variable, v.unit, vd.description as vegetation from data_extended d
-join hobo h on h.hobo_id=d.hobo_id and h.year=2018
-join variables v on d.variable_id=v.id and v.id=1
-join vegetation_cover vc on st_within(st_transform(h.geom, 31467), vc.geom) and h.geom is not null
-join vegetation_cover_description vd on vd.id=vc.description_id
+SELECT DISTINCT key FROM details
 ```
 
-Let's have a look on the first two rows of both views:
+This is a quite common pattern to store arbitrary key=value pairs to extend structured metadata. We will first focus on `'exposition'`. The `metadata` table is then referenced by a third table called `nm_metadata_details`. That is called an *association table*, as it only stores pairs of references to the primary key of `metadata` and `details`. This is the way, how a N:M or many-to-many cardinality is implemented. This allows us to store **and update** common key-value combinations only once, despite of the number of references. Let's checkout details involving exposition and count how often they have been referenced.
 ```{sql connection=con}
-select * from join_then_filter limit 2
+select * from details where key='exposition'
 ```
 ```{sql connection=con}
-select * from filter_then_join limit 2
-```
-
-<div class="alert alert-warning">Before you continue, what do you think is the faster query and why?</div>
-
-```{sql connection=con}
-explain analyze select * from join_then_filter
-```
-```{sql connection=con}
-explain analyze select * from filter_then_join
+SELECT str_value as value, count(*) as "n_references" from nm_metadata_details nm
+JOIN details d ON d.id=nm.detail_id
+WHERE key='exposition'
+GROUP BY value
 ```
 
-<div class="alert alert-success">Have a close look and don't focus on the total time. The query plan is exactly the same, that means although we were using a different query logic, PostgreSQL kind of got the idea behind our query and tried to find the fastest solution.</div>
+If we would decide to use the full names, like 'North' instead of 'N', we need only one update on the `details` table to affect all references. We can do the same thing for the sunlight influence and join both to the `metadata` table.
+To do that effectively, we need to introduce the concepts of *sub-queries*. There is no need to join two tables or views, we can also join a table to another <span style="color:blue">SELECT</span> in-place.
+```{sql connection=con}
+select m.*, exp.exposition, inf.influence
+FROM metadata m
+JOIN (
+  select meta_id, str_value as exposition FROM nm_metadata_details nm
+  JOIN details d on nm.detail_id=d.id
+  where d.key='exposition'
+) exp on exp.meta_id=m.id
+JOIN (
+  select meta_id, str_value as influence FROM nm_metadata_details nm
+  JOIN details d on nm.detail_id=d.id
+  where d.key='influence'
+) inf on inf.meta_id=m.id
+```
+
+As a final step, we can use the result from above to check if there is a general difference in temperature indices between the combinations on exposition and influence.
+```{sql connection=con}
+select exposition, influence, avg(value) as mean_t from raw_data
+JOIN (
+  select m.*, exp.exposition, inf.influence
+  FROM metadata m
+  JOIN (
+    select meta_id, str_value as exposition FROM nm_metadata_details nm
+    JOIN details d on nm.detail_id=d.id
+    where d.key='exposition'
+  ) exp on exp.meta_id=m.id
+  JOIN (
+    select meta_id, str_value as influence FROM nm_metadata_details nm
+    JOIN details d on nm.detail_id=d.id
+    where d.key='influence'
+  ) inf on inf.meta_id=m.id
+) as m on m.id=raw_data.meta_id
+where variable_id = 1
+Group by exposition, influence
+order by exposition, influence
+```
 
 ## left/right join
 
-In all the preceding examples, the join of two tables went quite well as every entry in the first table could find at least on entry 
-on the second table. Switching to 'database language' here, the first table will be called the _left_ and the second one the _right_ table.
+In all the preceding examples, the join of two tables went quite well as every entry in the first table could find at least on entry on the second table. Switching to 'database language' here, the first table will be called the _left_ and the second one the _right_ table.
 By default, the database will always join the right to the left one. If there is no foreign key referencing a record on the right table, there won't be a join for these entries. <br>
 Thus, the _default_ join is in reality a <span style="color:blue">LEFT JOIN</span>. 
-The oposite direction for building the join can be achieved by using a <span style="color:blue">RIGHT JOIN</span>.<br>
-This can be illustrated by building an easy example.
-```{sql connection=con, warning=F, echo=F, message=F}
-create temporary table roles (
-  id serial constraint pkey_roles primary key,
-  name text
-);
-create temporary table people (
-  id serial constraint pkey_people primary key,
-  name text,
-  role_id integer constraint fkey_role references roles
-);
-insert into roles (id, name) values (1, 'jun. developer'), (2, 'sen. developer'), (3, 'boss');
-insert into people (name, role_id) values ('alex', 1), ('dave', NULL), ('christine', 3), ('brian', 2), ('melanie', 2);
-```
+The oposite direction for building the join can be achieved by using a <span style="color:blue">RIGHT JOIN</span>.
+<br>
+To work a little bit on joins, we will introduce yet another data example. Right now (winter term 2022/2023), a collaboration of > 20 scientists from > 15 universities is working on a so-called CAMELS dataset for Germany. These are homogenized, daily resolved discharge timeseries for medium sized catchments with unified meteorological data and catchment attributes.
+There are two tables involved: `camels_de_metadata` and `camels_de_data`. Please note that the data is currently being processed and can only be used for this lecture.
 
-looks like:
-```{sql connection=con}
-select * from people
-```
-```{sql connection=con}
-select * from roles
-```
-
-Now, the left join should give us the expected example of the roles.id and roles.name bound to everybody except dave. The right join on the other hand should give us the roles with the people bound to it. 
-
-<div class="alert alert-warning">Before you procede think about the following aspects:
-  * What will happen to dave? Omitted?
-  * Who will be bound to sen. developer - brian or melanie - and why?
-</div>
+<div class="alert alert-warning">Please note that the CAMELS-DE dataset is not yet published. Although it will be freely available, you have access to preliminary processed data, which does **not** fall under an open license. If you load the data to your computer, you **have to** delete it after the lecture.</div>
 
 ```{sql connection=con}
-select * from people p left join roles r on p.role_id=r.id
+SELECT * FROM camels_de_metadata LIMIT 10
 ```
+The `camels_id` is the primary key and referenced by the data table `camels_de_data`. With a left join, we can join the metadata to the data and count the available days of data as aggregation information.
 ```{sql connection=con}
-select * from people p right join roles r on p.role_id=r.id
+select meta.camels_id, federal_state, area, data.count from camels_de_metadata meta
+LEFT JOIN (
+  select camels_id, count(*) from camels_de_data
+  group by camels_id
+) as data on data.camels_id=meta.camels_id
 ```
- 
-Not what you expected? Well, the left/right just gives the **direction**. That's why dave is only missing in the right join.
-For the opposite **behaviour** we will need another _type_ of joining, more on that in the next section. 
-What you might have expected for the second example is the opposite _join_.:
+
+The `LEFT` can be omitted here, as every join is a left join if the direction is not further specified. The opposing one is the `RIGHT JOIN`. This specifies the *direction* from which one table is joined to the other. The final result set cannot contain any information, that has no key in the primary table. Here, that means, the `LEFT JOIN` will contain all camels_id that exist in the left (primary) table. Now we only change the direction of the join:
 ```{sql connection=con}
-select * from roles r join people p on p.role_id=r.id
+select meta.camels_id, federal_state, area, data.count from camels_de_metadata meta
+RIGHT JOIN (
+  select camels_id, count(*) from camels_de_data
+  group by camels_id
+) as data on data.camels_id=meta.camels_id
 ```
-with the other direction:
-```{sql connection=con}
-select * from roles r right join people p on p.role_id=r.id
-```
+
+You can notice that the camel_ids are not continuous anymore. There are only 237 instead of 775 rows in the result set. The `count` column, which originates from the right table is now always filled, there are no NAs anymore.
+
+<div class="alert alert-info">There is no *correct* way to join these two tables. The main question is if you want to avoid NA values in important columns or ensure integrity of your primary column (camels_id)</div>
+
 
 ## inner/outer join
 
 The _type_ of join is controlled by the <span style="color:blue">INNER</span> and <span style="color:blue">OUTER</span> keyword.
-This sets the condition on omitting and duplication of entires in the result. 
-Think of these keywords from a mengenlehre perspective. The INNER subset of both tables are the ones which are described by a
-foreign key on the left and a primary key on the right table (if the direction is _left_). 
-The OUTER subset are the records which are either described by a **primary key** on the left or right, no matter what the direction 
-might look like.
+The type of join decides on inclusion of filling of un-matching keys.
+Think of these keywords in terms of set theory. The INNER subset of both tables are the ones which have a primary key in the left and a foreign key in the right table. 
+The OUTER JOIN create the (set theory) union of both tables. To illustrate this, we will work on a limited metadata set, so that there is data without metadata and metadata without data
 ```{sql connection=con}
-select * from people p inner join roles r on p.role_id=r.id
-```
-```{sql connection=con}
-select * from people p left outer join roles r on p.role_id=r.id
-```
-```{sql connection=con}
-delete from people where id=1
-```
-```{sql connection=con}
-select * from people p left outer join roles r on p.role_id=r.id
+create temporary view small_meta as
+select * from camels_de_metadata 
+ORDER BY camels_id
+LIMIT 80
 ```
 
 ```{sql connection=con}
-select * from people p inner join roles r on p.role_id=r.id
+select small_meta.camels_id, federal_state, area, data.count from small_meta
+LEFT OUTER JOIN (
+  select camels_id, count(*) from camels_de_data
+  group by camels_id
+) as data on data.camels_id=small_meta.camels_id
 ```
-<div class="alert alert-success">LEFT/RIGHT joins decide on the __direction__ you look at the joined information. If you look from the left, you will only see entries from the left table and vice versa. INNER/OUTER joins decide on the __type__ of join. This controls the conditions for including/excluding/duplicating entries in the result.</div>
+You can see, that the <span style="color:blue">JOIN</span> is still a left one. All 80 primary keys are in the result set. 
+All joins we created so far were outer joins on the left table. That is the default behavior. The other type is the <span style="color:blue">INNER JOIN</span>, which does not have a direction.
+
+```{sql connection=con}
+select small_meta.camels_id, federal_state, area, data.count from small_meta
+INNER JOIN (
+  select camels_id, count(*) from camels_de_data
+  group by camels_id
+) as data on data.camels_id=small_meta.camels_id
+```
+
+
+<div class="alert alert-success">LEFT/RIGHT joins decide on the __direction__ you look at the joined information. If you look from the left, you will only see entries from the left table and vice versa. INNER/OUTER joins decide on the __type__ of join. This controls the conditions for keeping complete entries in the result set.</div>
 
 <div class="alert alert-warning">There is also something called a <span style="color:blue">NATURAL JOIN</span> in PostgreSQL.
 This will use the foreign key from the left table using the exactly same name as the primary key in the right table and 
 omit both columns in the result.</div>
 
-
-### Back to temporary objects
-
-In fact we flooded the database with a lot of views and tables during this session. Some of them were tables of quite substatial size compared to the pre-existing tables. Do you still remember every single object? No?
-No problem, these were all temporaray objects. Now close the connection:
-
-```{r}
-dbDisconnect(con)
-```
-
-Restablish:
-
-```{r}
-# establish the connection
-drv <- dbDriver('PostgreSQL')
-con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
-                 password=getPass('Provide the password'), dbname='datamanagement')
-```
-
-And the tables are gone:
-```{r}
-'temperature_indices' %in% dbListTables(con) | 'temperature' %in% dbListTables(con) | 'people' %in% dbListTables(con)
-```
 
 # cleanup
 ```{r}
