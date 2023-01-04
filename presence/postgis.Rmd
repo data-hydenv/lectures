@@ -1,12 +1,11 @@
 ---
 title: "PostGIS"
-description: |
-  Enable powerful GIS functionality in your PostgreSQL database.
+description: "Enable powerful GIS functionality in your PostgreSQL database."
 author:
-  - name: Mirko Mälicke
-    url: https://hyd.iwg.kit.edu/personen_maelicke.php
-    affiliation: Karlsruhe Institute for Technology (KIT)
-    affiliation_url: https://hyd.iwg.kit.edu
+  - name: "Mirko Mälicke"
+    url: "https://hyd.iwg.kit.edu/personen_maelicke.php"
+    affiliation: "Karlsruhe Institute for Technology (KIT)"
+    affiliation_url: "https://hyd.iwg.kit.edu"
 date: "`r Sys.Date()`"
 output:  
   html_document:
@@ -24,8 +23,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
-
+#knitr::opts_chunk$set(echo = FALSE)
 # require the package
 if (!("RPostgreSQL" %in% installed.packages())){
   install.packages("RPostgreSQL")
@@ -33,24 +31,37 @@ if (!("RPostgreSQL" %in% installed.packages())){
 if (!("getPass" %in% installed.packages())){
   install.packages("getPass")
 }
-require(RPostgreSQL)
-require(getPass)
-require(ggplot2)
+if (!("plotly" %in% installed.packages())){
+  install.packages("plotly")
+}
+if (!("sf" %in% installed.packages())){
+  install.packages("sf")
+}
+library(RPostgreSQL)
+library(getPass)
+library(plotly)
+library(sf)
+
+pw <- function () {
+  if (Sys.getenv('POSTGRES_PASSWORD') == ""){
+    return(getPass('Provide the password: '))
+  } else {
+    return(Sys.getenv('POSTGRES_PASSWORD'))
+  }
+}
 
 # establish the connection
 drv <- dbDriver('PostgreSQL')
-con <- dbConnect(drv, host='v45522.1blu.de', port=5432, user=getPass('Provide the user'), 
-                 password=getPass('Provide the password'), dbname='datamanagement')
+con <- dbConnect(drv, host='hydenv.hydrocode.de', port=5432, user='hydenv', 
+                 password=pw(), dbname='hydenv')
 ```
 
 # PostGIS
 
-PostGIS is a PostgreSQL extension that offers several new datatypes for attribute declaration along with over 1000 predefined functions.
-The main new data type is called 'GEOMETRY' and can store any kind of OGR defined geometry object. 
-The most important ones are the 'Point', 'Line' or 'LineString' and 'Polygon' geometry. A new table 'spatial_ref_sys' is also created on 
-PostGIS creation, which comes prefilled with thousands of different CRS definitions. 
-The functions can be used for any kind of spatial and geometrical manipulation and query as known from other GIS systems. In fact, 
-the PostgreSQL / PostGIS system is a full featured GIS system. <br>
+PostGIS is a PostgreSQL extension that offers several new datatypes for attribute declaration along with hundreds of predefined functions.
+The main new data type is called `GEOMETRY` and can store any kind of OGR defined geometry object. 
+The most important ones are the `'POINT'`, `'LINESTRING'` and `'POLYGON'` geometry. A new table `spatial_ref_sys` is also created, which includes almost any existing CRS definitions. 
+The functions can be used for any kind of spatial and geometrical operation and follows common naming conventions you might already know from other GIS systems. In fact, the PostgreSQL / PostGIS system is a full featured GIS system. <br>
 CRS are stored in an ordinary table and can be queried just like you did it in the other lectures:
 
 ```{sql connection=con}
@@ -61,7 +72,7 @@ This looks quite simple. There is a srid, the primary key, which you should alre
 as primary key. This is very handy as the ESPG identifiers are already unique (and well known).<br>
 The _proj4text_ field stores the CRS definition as a Poj4 string. This can be understood by most GIS system, like QGis, and recreate 
 missing or custom CRS. The _srtext_ field stores the WKT (well known text) definition of the CRS. This could be used to build the CRS 
-by hand in other programming languages like Python, Perl or C++. <br>
+by hand in other programming languages like Python, Java or C++. <br>
 Ok, then let's see if all coordinate systems we might need are there:
 <ul>
 <li>unprojected WGS84, as kown from google maps</li>
@@ -74,175 +85,361 @@ Ok, then let's see if all coordinate systems we might need are there:
 select * from spatial_ref_sys where srid in (4326, 3857, 31467, 25832)
 ```
 
+<div class="alert alert-info">Usually, you don't have to interact with the spatial reference systems directly as PostGIS will take care of that. Nevertheless it's good to know, where it finds its informations to do some magic.</div>
+
 # Loading spatial data to R
 
-You might have recognized, that RStudio is complaining about a not known datatype when querying the stations table from the database.
-This is due to the GEOMETRY data type, we introduced earlier. This is not known by the R package RPostgreSQL. Unlike Python, there 
-is no easy way to make R or RStudio understand this datatype. Therefore, we will always have to load the geometries in the WKT format
-and convert it in R back to a binary spatial object as supported by the R packages you prefer.<br>
+You might have recognized, that RStudio is complaining about a not known datatype when querying the stations table from the database. This is due to the GEOMETRY data type, we introduced earlier. This is not known by the R package RPostgreSQL. Unlike Python, there is no easy way to make R or RStudio understand this datatype. Therefore, we will always have to load the geometries in the WKT format and convert it in R back to a binary spatial object as supported by the R packages you prefer. The alternative approach is to use the simple features `sf` package. That is a great package, but it has some nasty dependencies, that do not easily interact with other software on a productive system. We will cover both approaches here.<br>
 This is where the PostGIS funcitons set in. We can use any of them in <span style="color:blue">SELECT</span> statements or 
-<span style="color:blue">WHERE</span> filters. In case you are familiar with the GDAL C++ or Python package, GRASS gis or any other command line based GIS solution, most of the PostGIS functions will be quite familiar to you. Otherwise you will have to search the 
-documentation for the correct function names and usages.<br>
+<span style="color:blue">WHERE</span> filters. In case you are familiar with the GDAL C++ or Python package, GRASS GIS, Saga GIS, whitebox-gis or any other command line based GIS solution, most of the PostGIS functions will be quite familiar to you. Otherwise you will have to search the documentation for the correct function names and usages.<br>
 The WKT of any GEOMETRY object can be loaded with the *ST_AsEWKT* function:
 
 ```{sql connection=con}
-select id, hobo_id, st_asewkt(geom) from hobo limit 5
+select id, device_id, st_asewkt(location) from metadata limit 5
 ```
 
-We can see two things here: First, we are able to read the coordinates now. Second, the raw WKT geometry information is prefixed by
-an iformation on the used CRS. This is a special PostGIS definition that might not be understood by every other GIS systems. 
-The advantage is the ability of the system to store the geometry and CRS information in only one attribute. This also means, that
-there is no need to connect this table to the spatial_ref_sys table anymore. We could transform these coordinates on select.
+We can see two things here: First, we are able to read the coordinates now. Second, the raw WKT geometry information is prefixed by an information on the used CRS. This is a special PostGIS definition that might not be understood by every other GIS system. The advantage is the ability of the system to store the geometry and CRS information in only one attribute. This also means, that there is no need to connect this table to the spatial_ref_sys table anymore. We could transform these coordinates on select.
 
 ```{sql connection=con}
-select id, hobo_id, st_asewkt(geom) as "WGS84", st_asewkt(st_transform(geom, 25832)) as "UTM" from hobo limit 5
+select id, device_id, st_asewkt(location) as "WGS84", st_asewkt(st_transform(location, 25832)) as "UTM" from metadata limit 5
 ```
 
-From here, we have several options to put the geometry information into a more usable format for R. We either load a package that can read WKT. Secondly, we could parse the Strings and extract the needed information ourselves or we could query the information in a
-more readable format for R. 
+From here, we have several options to put the geometry information into a more usable format for R. We either load a package that can read WKT. Secondly, we could parse the Strings and extract the needed information ourselves or we could query the information in a more readable format for R. 
 
-<div class="alert alert-warning">Other languages like Python offer way more powerful bindings to databases. The SQLAlchemy and geoalchemy2 packages in Python, which are available in most scientific Python environments, can load, plot and manipulate PostGIS geometries out of the box.</div>
+<div class="alert alert-warning">Other languages like Python offer way more powerful bindings to databases. The SQLAlchemy and geoalchemy2 packages in Python, or the pandas/geopandas/polars data-science packages, which are available in most scientific Python environments, can load, plot and manipulate PostGIS geometries out of the box.</div>
 
+### Base R
+
+First, let's load some point geometries with base r.
 ```{sql connection=con, output.var="hobo"}
-select id, hobo_id, st_x(geom) as lon, st_y(geom) as lat from hobo where geom is not null
+select metadata.id, device_id, short as term, st_x(location) as lon, st_y(location) as lat from metadata 
+join terms on terms.id=metadata.term_id
+where location is not null
 ```
 ```{r}
-ggplot(hobo, aes(x=lon, y=lat)) + geom_point(shape=18)
+plot_ly(data=hobo, x=~lon, y=~lat, type="scatter", mode="markers", marker=list(size=8), color=~term, text=~paste("Device ID: ", device_id)) %>% 
+  layout(xaxis=list(zerolines=F), yaxis=list(zerolines=F))
 ```
+```{r}
+plot_ly(data=hobo, lon=~lon, lat=~lat, mode="markers", type="scattermapbox",marker=list(size=8), color=~term, text=~paste("Device ID: ", device_id)) %>% 
+    layout(mapbox=list(style="stamen-toner", zoom=10.5, center=list(lon=7.8, lat=48)))
+```
+
+
+## using simple features
+
+If you want to read other geometries, you need to handle the WKT first. Here, simple features comes in quite helpful, as it can read PostGIS geometries. We have some OSM data on the server, let's check that one out. Working with OSM data usually needs some deep joining and a fair knowledge of the OSM tag system. Here, the most important information was extracted and added to the `osm_nodes` table:
+<ul>
+  <li>The geometries are already dissolved</li>
+  <li>The name is extracted and added</li>
+  <li>For relations containing the tag `border=administrative` the tag `admin_level=9` and `admin_level=10` were translated to the node type 'district'</li>
+</ul>
+```{sql connection=con}
+SELECT * FROM osm_nodes 
+```
+
+```{r}
+districts <- st_read(con, query="SELECT name, geom as geometry FROM osm_nodes WHERE node_type='district'", quiet=T)
+plot_ly(districts)
+```
+```{r}
+plot_ly() %>% 
+  add_sf(data=districts, text=~name, type="scattermapbox", mode="lines", fill="toself", color="steelblue", line=list(color="black"), name="City districts") %>%
+  add_trace(data=hobo, x=~lon, y=~lat, mode="markers", type="scattermapbox",
+            marker=list(size=12), color=~term, text=~paste("Device ID: ", device_id), name=~term) %>%
+    layout(
+      mapbox=list(style="stamen-terrain", zoom=10., center=list(lon=7.8, lat=48), pitch=45), 
+      legend=list(orientation='h'))
+```
+
+
 
 # Enabling spatial functions
 
-One of the most important spatial funcitons is PostGIS ability to transform coordinates from and into any coordinate system defined in 
-the spatial_ref_sys table. This is extremly helpful, when we want to combine our data with external datasources that force a specific CRS. Secondly, when applying spatial functions and calculating relations, distances or areas we must not use an unsuitable CRS 
-in order to prevent big calculation mistakes.<br>
-PostGIS knows two helpful functions: *ST_Transform* for applying a transformation and *ST_SetCRS* for setting the CRS information in 
-case they are missing in the GEOMETRY object.
-
-```{sql connection=con, output.var="hobo.utm"}
-select id, hobo_id, st_x(st_transform(geom, 25832)) as lon, st_y(st_transform(geom, 25832)) as lat 
-  from hobo where geom is not null  and st_y(geom) < 48.1
-```
-```{r}
-ggplot(hobo.utm, aes(x=lon, y=lat)) + geom_point(shape=18)
-```
-
-It is also possible to calculate distances in the database. Once calculated, these distance can be used like any other attribute, this 
-means you can also sort or group by distances. Knowing this, it is for example easy to find the next station for a specific location, or a set of locations.<br>
-Let's find a random hobo (od id 42) and search the database for the the closest and farest feature.
+## Transformations
+One of the important spatial functions is PostGIS ability to transform coordinates from and into any coordinate system defined in the spatial_ref_sys table. This is extremely helpful for combining data from different datasources, or when a target application requires a specific CRS (like web mapping libraries). Secondly, when applying spatial functions and calculating relations, distances or areas we must not use an unsuitable CRS in order to prevent big calculation mistakes.<br>
+PostGIS knows two helpful functions: *ST_Transform* for applying a transformation and *ST_SetCRS* for setting the CRS information in case they are missing in the GEOMETRY object.
 
 ```{sql connection=con}
-select * from hobo where id=42
+select device_id, short as term, st_x(st_transform(location, 25832)) as lon, st_y(st_transform(location, 25832)) as lat 
+from metadata 
+join terms on terms.id=metadata.term_id
+where location is not null
+```
+The difference to `ST_SetSRID` becomes obvious with the next example:
+```{sql connection=con}
+SELECT device_id, 
+  st_asewkt(st_transform(location, 25832)) as "st_transform",
+  st_asewkt(st_setsrid(location, 25832)) as "st_setsrid"
+from metadata
+LIMIT 10
+```
+
+## GIS operations
+
+It is also possible to calculate distances in the database. Once calculated, these distance can be used like any other attribute, this means you can also sort or group by distances. Knowing this, it is for example easy to find the next station for a specific location, or a set of locations.<br>
+Let's find a random hobo (id 42) and search the database for the the closest and furthest other device.
+
+```{sql connection=con}
+select * from metadata where id=42
 ```
 ```{sql connection=con}
 select 
-  st_distance(geom, (select geom from hobo where id=42)) as distance, 
+  st_distance(location, (select location from metadata where id=42)) as distance, 
   * 
-from hobo 
-where id!=42 and geom is not null 
+from metadata 
+where id!=42 and location is not null 
 order by distance ASC
 ```
+As you can see, the distance seems to be incorrect. What is going on?
+Fix this query and union this query two times, just just ordered ascending and descending.
 ```{sql connection=con}
-select 'closest' as description, id, hobo_id, distance / 1000 as "distance [km]" from 
+select 'closest' as description, id, device_id, distance / 1000 as "distance [km]" from 
 (
   select  
-    st_distance(st_transform(geom, 25832), (select st_transform(geom, 25832) from hobo where id=42)) as distance, 
-    id, hobo_id 
-    from hobo 
-  where id!=42 and geom is not null 
+    st_distance(st_transform(location, 25832), (select st_transform(location, 25832) from metadata where id=42)) as distance,
+    id, device_id 
+    from metadata
+  where id!=42 and location is not null 
   order by distance ASC limit 1
 ) t1
 union
-select 'farest' as description, id, hobo_id, distance / 1000 as "distance [km]" from
+select 'farest' as description, id, device_id, distance / 1000 as "distance [km]" from
 (
   select  
-    st_distance(st_transform(geom, 25832), (select st_transform(geom, 25832) from hobo where id=42)) as distance, 
-    id, hobo_id 
-    from hobo 
-  where id!=42 and geom is not null 
+    st_distance(st_transform(location, 25832), (select st_transform(location, 25832) from metadata where id=42)) as distance,
+    id, device_id 
+    from metadata
+  where id!=42 and location is not null 
   order by distance DESC limit 1
 ) t2
 
 ```
 
-It is also possible to subset the table and filter the stations to be within a specific distance to our random HOBO (e.g. 2.5km).
-
+It is also possible to subset the table and filter the stations to be within a specific distance to our random HOBO (e.g. 2.5km). To make the queries a bit shorter, let's create a temporary view, that does the transformations for us.
 ```{sql connection=con}
-select id, hobo_id from hobo where st_distance(st_transform(geom, 25832), (select st_transform(geom, 25832) from hobo where id=42)) <= 2500
-```
-```{sql connection=con}
-select id, hobo_id from hobo where st_within(st_transform(geom, 25832), st_buffer((select st_transform(geom, 25832) from hobo where id=42), 2500))
+create temporary view hobo as
+select st_transform(location, 25832) as geom, * from metadata
 ```
 
-These two solutions lead to an identical solution, but there is something very different happening. It is very good to have different ways of calculating the same result. 
-The way PostgreSQL will find the selected features can be described as a query plan. This is esentially, what the computer is planning to do and, more important, why it came to these decisions. Therefore it is a very helpful tool to be able to print out these query plans when trying to identify dropping performances. 
-Another helpful information of a query plan is the total runtime on the machine. This does not include the time the data needs to be 
-transferred to your computer and the time a client application needs to visualize the data, which is usually the bottleneck but has 
-nothing to do with the actual database performance.<br>
-In PostgreSQL you can prefix any <span style="color:blue">SELECT</span> statement with <span style="color:blue">EXPLAIN ANALYZE</span>
-to make Postgres print out the query plan instead of the results.
 
 ```{sql connection=con}
-explain analyze select id, hobo_id from hobo where st_distance(st_transform(geom, 25832), (select st_transform(geom, 25832) from hobo where id=42)) <= 2500
+select id, device_id from hobo where st_distance(geom, (select geom from hobo where id=42)) <= 2500
 ```
 ```{sql connection=con}
-explain analyze select id, hobo_id from hobo where st_within(st_transform(geom, 25832), st_buffer((select st_transform(geom, 25832) from hobo where id=42), 2500))
+select id, device_id from hobo where st_within(geom, st_buffer((select geom from hobo where id=42), 2500))
+```
+
+These two solutions lead to an identical solution, but there is something very different happening. It is very good to have different ways of calculating the same result. The way PostgreSQL will find the selected features can be described as a query plan. This is essentially, what the computer is planning to do and, more important, why it came to these decisions. Therefore it is a very helpful tool to be able to print out these query plans when trying to identify dropping performances. 
+Another helpful information of a query plan is the total runtime on the machine. This does not include the time the data needs to be transferred to your computer and the time a client application needs to visualize the data, which is usually the bottleneck but has nothing to do with the actual database performance.<br>
+In PostgreSQL you can prefix any <span style="color:blue">SELECT</span> statement with <span style="color:blue">EXPLAIN ANALYZE</span>to make PostgreSQL print out the query plan instead of the results.
+
+```{sql connection=con}
+explain analyze select id, device_id from hobo where st_distance(geom, (select geom from hobo where id=42)) <= 2500
+```
+```{sql connection=con}
+explain analyze select id, device_id from hobo where st_within(geom, st_buffer((select geom from hobo where id=42), 2500))
 ```
 
 # GIS in the database
 
-The database includes several tables containing data uploaded from the WaBoA (Wasser- und Bodenatlas Baden-Württemberg). 
-This is a major source for geodata in the region used by hydrologists quite frequently. Among others, you will find a table called
-vegetation_cover there. Let's have a look on that table.
+## Working with different geometries
 
-```{sql connection=con}
-select * from vegetation_cover limit 5
+The last example for this lecture is a GIS analysis. We will switch back to the CAMELS-DE dataset. Along with the discharge and water level data, we have metadata, which contains location information.
+```{sql connection=con, output.var="sh"}
+SELECT *, 
+  st_x(st_transform(geometry, 4326)) as lon,
+  st_y(st_transform(geometry, 4326)) as lat
+from camels_de_metadata where q_count > 0
+```
+```{r}
+sh %>%
+  plot_ly(type="scattermapbox", mode="markers", lon=~lon, lat=~lat, marker=list(size=10, color="brown", opacity=0.9)) %>%
+  layout(mapbox=list(style="open-street-map", zoom=6.8, center=list(lon=10, lat=54.15)))
 ```
 
-The description_id seems to be a foreign key on a lookup table. The table containing the description for each kind of vegetation cover class is called 'vegetation_cover_description'. To get a better insight, join the two tables and load the geometry 
-in a human readable way.
+In addition there is river data from openstreetmap in the database. It is already substantially pre-processed in a way that you can simply filter for the `node_type='waterway'`
 
-```{sql connection=con}
-select vc.id, d.description, st_asewkt(vc.geom) from vegetation_cover vc join vegetation_cover_description d on vc.description_id=d.id limit 5
+```{r}
+waterways <- read_sf(con, query="SELECT id, name, geom as geometry from osm_nodes WHERE node_type='waterway' and name is not null and name != 'Indian River'", quiet=T)
+```
+```{r}
+library(ggplot2)
+ggplotly(ggplot() + geom_sf(data=waterways, aes(color=name)))
+  #add_trace(data=sh, type="scattergeo", mode="markers", lon=~lon, lat=~lat, marker=list(size=10, color="brown", opacity=0.9))# %>%
+#coords <- st_coordinates(waterways) %>% as.data.frame() 
+#plot_ly() %>% add_trace(data=coords, lon=~X, lat=~Y, type='scattermapbox', mode='lines') %>%
+#  layout(mapbox=list(style="open-street-map", zoom=6.8, center=list(lon=10, lat=54.15)))
+
 ```
 
-The geometry fields contain Polygons. We could instead use the area.
-
+Although the plot looks good, the hover is snapping to many features. A reason for this could be, that the rivers consist of different parts. This can easily be verified.
 ```{sql connection=con}
-select vc.id, d.description, st_area(vc.geom) from vegetation_cover vc join vegetation_cover_description d on vc.description_id=d.id limit 5
-```
-
-Another table from WaBoA is the catchment table (Einzugsgebiete). These are all 'official' LUBW catchments. 
-Note that these catchments do overlap, as they are derived on different levels. 
-One thing we could do is join the catchment table to the hobo table based on the location. The correct spatial query is a WITHIN or CONTAINS, based on which of both geometries you are querying against.
-
-```{sql connection=con}
-select * from hobo h join catchments cth on st_within(h.geom, cth.geom)
-```
-
-Rember that this does not work, as the two tables use different CRS. A GIS system will however just use the coordinates to perform a query. 
-
-```{sql connection=con}
-select * from hobo h join catchments cth on st_within(st_transform(h.geom, 31467), cth.geom)
-```
-
-
-If you build your query like this, PostgreSQL will use the first matching feature from the einzugsgebiete table. To verify, that our results are correct, we need to count the instances, that do fulfill the connection conditional.
-
-```{sql connection=con}
-select h.id, h.hobo_id, count(cth.id) from hobo h 
-  left outer join catchments cth on st_within(st_transform(h.geom, 31467), cth.geom)
-group by h.id, h.hobo_id
-```
-
-It is also possbile to select from a <span style="color: blue;">SELECT</span> query. This way we could use the joint statement to count the hobo occurances per catchment.
-
-```{sql connection=con}
-select name, count(id) as amount_hobos from 
-(select h.id, cth.name from hobo h join catchments cth on st_within(st_transform(h.geom, 31467), cth.geom)) as joint
+SELECT name, count(*) from osm_nodes where node_type='waterway' and name is not null 
 group by name
-order by amount_hobos DESC
+```
+Now, we can use a geometric operation instead of the `count` function for the aggregation:
+```{sql connection=con}
+drop table if exists rivers;
+create temporary table rivers as
+SELECT name, st_union(geom) as geom from osm_nodes
+where node_type='waterway' and name is not null
+group by name
+```
+```{sql connection=con}
+select name, round(st_length(st_transform(geom, 3035)) / 1000) as "length [km]" from rivers order by "length [km]" DESC
+```
+Next, we could join each discharge station to the next waterway, but to practice a bit more PostGIS, we will aggregate the discharge stations and count them, if they are closer than 15 meters to the stream, by buffering the river.
+```{sql connection=con}
+with buffers as (
+  select name, st_buffer(st_transform(geom, 3035), 15) as buffer from rivers
+),
+stations as (
+  select name, count(camels_id) as n_stations from buffers
+  join camels_de_metadata c on st_within(c.geometry, buffers.buffer)
+  group by name
+)
+select r.name, round(st_length(st_transform(geom, 3035)) / 1000) as "length [km]", s.n_stations
+from rivers r
+join stations s on s.name=r.name
+order by n_stations DESC
+```
+And finally, we can aggregate the data along with the aggregation of the stations. If this is very useful from a hydrological perspective is up to you, but remember that much more powerful aggregations, than just an average value exist. We can do some simplified extreme statistics.
+For this we first need to take care of the discharge data and use some partitions, so that we can preserve the date at which the maximum discharge was observed. If we would simply group by year and aggregate with the `max` function, we lose that information.
+```{sql connection=con}
+drop table if exists year_max;
+create table year_max as
+with q as(
+  select camels_id, date::timestamp without time zone as date, date_part('year', date::timestamp without time zone) as year, q
+  from camels_de_data
+  where q is not null
+),
+q_full as (
+  select camels_id, date, year, q,
+  first_value(q) over (partition by camels_id, year order by q desc) as max_q,
+  first_value(date) over (partition by camels_id, year order by q desc) as max_date
+  from q
+),
+year_max as (
+  select camels_id, year, max(max_q) as q, max(max_date) as date
+  from q_full
+  group by camels_id, year
+)
+select * from year_max
+```
+```{sql connection=con}
+drop view if exists extremes;
+create temporary view extremes as
+with q_ranks as (
+  select camels_id, year, q, date,
+    rank() over (partition by camels_id order by q desc) as rank,
+    count(*) over (partition by camels_id) as total
+  from year_max 
+)
+select camels_id, year, q, date, rank::real / (total + 1)::real as p, 1 / (rank::real / (total + 1)::real) as "T" from q_ranks
+order by "T" DESC
+```
+```{sql connection=con}
+select * from extremes limit 100
 ```
 
+Now, we can aggregate the table created above, which includes the return interval for every recorded year to only those with an empirical return interval larger than 10 years. We will use an array aggregation, to collect all values.
+
+```{sql connection=con}
+select camels_id, array_agg("T"::integer) as "T", array_agg(q) as q, array_agg(date) as date
+from extremes
+where "T" > 10
+group by camels_id
+```
+
+Finally, we can combine both, the discharge stations for each river segment and the extreme statistics. The workflow is to calculate the statistics per station, then join them to a river segment and finally aggregate the river segments by their name to have extreme statistics per river.
+
+For this, it is useful to create a temporary table containing the merged extreme statistics and the river name. For this, we need to make a spatial join that merges the river name based on a 15 meter buffer around the rivers to the contained stations. This might seem to be a bit more complicated, but it will be easier to perform the final aggregation.
+```{sql connection=con}
+drop table if exists stats_with_rivers;
+create temporary table stats_with_rivers as
+with buffers as (
+  select name, st_buffer(st_transform(geom, 3035), 15) as buffer from rivers
+),
+stations_extremes as (
+  select camels_id, array_agg("T"::integer) as "T", array_agg(q) as q, array_agg(date) as date, array_agg(camels_id) as ids
+  from extremes
+  where "T" > 10
+  group by camels_id
+),
+meta as (
+  select c.camels_id, geometry, e."T", e.q, e.date, e.ids
+  from camels_de_metadata c
+  inner join stations_extremes e on e.camels_id=c.camels_id
+)
+
+select name, camels_id, geometry, "T", q, date, ids
+from meta
+join buffers on st_within(meta.geometry, buffers.buffer);
+```
+```{sql connection=con}
+select * from stats_with_rivers limit 10;
+```
+Now we have each CAMELS-DE station with all return periods, discharges and dates of flood with an empirical return period larger than 10 years. Finally, we can do some analysis on this dataset.
+
+Create statistics for each river:
+```{sql connection=con, output.var="extremes"}
+with t_agg as (
+  select name, array_agg(t) as "T"
+  from stats_with_rivers, unnest("T") as t
+  group by name
+),
+q_agg as (
+  select name, array_agg(t) as q
+  from stats_with_rivers, unnest(q) as t
+  group by name
+),
+date_agg as (
+  select name, array_agg(t) as date
+  from stats_with_rivers, unnest(date) as t
+  group by name
+),
+id_agg as (
+  select name, array_agg(t) as ids
+  from stats_with_rivers, unnest(ids) as t
+  group by name
+),
+base_stats as (
+  select name, count(camels_id) as n_stations from stats_with_rivers group by name
+),
+stats as (
+  select base_stats.name, n_stations, "T", q, date, ids
+  from base_stats
+  join q_agg on q_agg.name=base_stats.name
+  join t_agg on t_agg.name=base_stats.name
+  join date_agg on date_agg.name=base_stats.name
+  join id_agg on id_agg.name=base_stats.name
+)
+
+select 
+  r.name, round(st_length(st_transform(geom, 3035)) / 1000) as "length [km]", 
+  s.n_stations, s."T", s.q, s.date, s.ids
+from rivers r
+join stats s on s.name=r.name
+order by "length [km]" DESC
+```
+```{r}
+extremes
+```
+
+Now, using nested data is really wild in R. It would be a good idea to use a more appropriate language here like Python or Typescript.
+```{r}
+library(stringr)
+df <- data.frame(
+  str_split(str_sub(extremes$ids[5], 2, -2), ','),
+  str_split(str_sub(extremes$q[5], 2, -2), ','),
+  str_split(str_sub(extremes$T[5], 2, -2), ',')
+) 
+names(df) <- c('id', 'q', 'T')
+df %>% 
+  plot_ly(type="scatter", mode="markers+lines", x=~T, y=~q, color=~id, marker=list(size=12)) %>%
+  layout(title="floods with T > 10 years in the Treene", legend=list(orientation='h'))
+```
 
 # cleanup
 ```{r}
