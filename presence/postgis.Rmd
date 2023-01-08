@@ -82,7 +82,7 @@ Ok, then let's see if all coordinate systems we might need are there:
 </ul>
 
 ```{sql connection=con}
-select * from spatial_ref_sys where srid in (4326, 3857, 31467, 25832)
+
 ```
 
 <div class="alert alert-info">Usually, you don't have to interact with the spatial reference systems directly as PostGIS will take care of that. Nevertheless it's good to know, where it finds its informations to do some magic.</div>
@@ -95,13 +95,14 @@ This is where the PostGIS funcitons set in. We can use any of them in <span styl
 The WKT of any GEOMETRY object can be loaded with the *ST_AsEWKT* function:
 
 ```{sql connection=con}
-select id, device_id, st_asewkt(location) from metadata limit 5
+
 ```
 
 We can see two things here: First, we are able to read the coordinates now. Second, the raw WKT geometry information is prefixed by an information on the used CRS. This is a special PostGIS definition that might not be understood by every other GIS system. The advantage is the ability of the system to store the geometry and CRS information in only one attribute. This also means, that there is no need to connect this table to the spatial_ref_sys table anymore. We could transform these coordinates on select.
+You can select a location twice, ie. in WGS84 and projected UTM representation.
 
 ```{sql connection=con}
-select id, device_id, st_asewkt(location) as "WGS84", st_asewkt(st_transform(location, 25832)) as "UTM" from metadata limit 5
+
 ```
 
 From here, we have several options to put the geometry information into a more usable format for R. We either load a package that can read WKT. Secondly, we could parse the Strings and extract the needed information ourselves or we could query the information in a more readable format for R. 
@@ -112,17 +113,17 @@ From here, we have several options to put the geometry information into a more u
 
 First, let's load some point geometries with base r.
 ```{sql connection=con, output.var="hobo"}
-select metadata.id, device_id, short as term, st_x(location) as lon, st_y(location) as lat from metadata 
+select metadata.id, device_id, short as term, as lon, as lat from metadata 
 join terms on terms.id=metadata.term_id
 where location is not null
 ```
 ```{r}
-plot_ly(data=hobo, x=~lon, y=~lat, type="scatter", mode="markers", marker=list(size=8), color=~term, text=~paste("Device ID: ", device_id)) %>% 
+plot_ly(data=hobo, x=~lon, y=~lat, type="scatter", mode="markers", marker=list(size=8), 
+        color=~term, text=~paste("Device ID: ", device_id)) %>% 
   layout(xaxis=list(zerolines=F), yaxis=list(zerolines=F))
 ```
 ```{r}
-plot_ly(data=hobo, lon=~lon, lat=~lat, mode="markers", type="scattermapbox",marker=list(size=8), color=~term, text=~paste("Device ID: ", device_id)) %>% 
-    layout(mapbox=list(style="stamen-toner", zoom=10.5, center=list(lon=7.8, lat=48)))
+
 ```
 
 
@@ -144,9 +145,12 @@ plot_ly(districts)
 ```
 ```{r}
 plot_ly() %>% 
-  add_sf(data=districts, text=~name, type="scattermapbox", mode="lines", fill="toself", color="steelblue", line=list(color="black"), name="City districts") %>%
+  add_sf(data=districts, text=~name, type="scattermapbox", mode="lines", fill="toself", color="steelblue",
+         line=list(color="black"), name="City districts") %>%
+  
   add_trace(data=hobo, x=~lon, y=~lat, mode="markers", type="scattermapbox",
             marker=list(size=12), color=~term, text=~paste("Device ID: ", device_id), name=~term) %>%
+  
     layout(
       mapbox=list(style="stamen-terrain", zoom=10., center=list(lon=7.8, lat=48), pitch=45), 
       legend=list(orientation='h'))
@@ -161,11 +165,9 @@ One of the important spatial functions is PostGIS ability to transform coordinat
 PostGIS knows two helpful functions: *ST_Transform* for applying a transformation and *ST_SetCRS* for setting the CRS information in case they are missing in the GEOMETRY object.
 
 ```{sql connection=con}
-select device_id, short as term, st_x(st_transform(location, 25832)) as lon, st_y(st_transform(location, 25832)) as lat 
-from metadata 
-join terms on terms.id=metadata.term_id
-where location is not null
+
 ```
+
 The difference to `ST_SetSRID` becomes obvious with the next example:
 ```{sql connection=con}
 SELECT device_id, 
@@ -184,35 +186,11 @@ Let's find a random hobo (id 42) and search the database for the the closest and
 select * from metadata where id=42
 ```
 ```{sql connection=con}
-select 
-  st_distance(location, (select location from metadata where id=42)) as distance, 
-  * 
-from metadata 
-where id!=42 and location is not null 
-order by distance ASC
+
 ```
 As you can see, the distance seems to be incorrect. What is going on?
 Fix this query and union this query two times, just just ordered ascending and descending.
 ```{sql connection=con}
-select 'closest' as description, id, device_id, distance / 1000 as "distance [km]" from 
-(
-  select  
-    st_distance(st_transform(location, 25832), (select st_transform(location, 25832) from metadata where id=42)) as distance,
-    id, device_id 
-    from metadata
-  where id!=42 and location is not null 
-  order by distance ASC limit 1
-) t1
-union
-select 'farest' as description, id, device_id, distance / 1000 as "distance [km]" from
-(
-  select  
-    st_distance(st_transform(location, 25832), (select st_transform(location, 25832) from metadata where id=42)) as distance,
-    id, device_id 
-    from metadata
-  where id!=42 and location is not null 
-  order by distance DESC limit 1
-) t2
 
 ```
 
@@ -266,11 +244,6 @@ waterways <- read_sf(con, query="SELECT id, name, geom as geometry from osm_node
 ```{r}
 library(ggplot2)
 ggplotly(ggplot() + geom_sf(data=waterways, aes(color=name)))
-  #add_trace(data=sh, type="scattergeo", mode="markers", lon=~lon, lat=~lat, marker=list(size=10, color="brown", opacity=0.9))# %>%
-#coords <- st_coordinates(waterways) %>% as.data.frame() 
-#plot_ly() %>% add_trace(data=coords, lon=~X, lat=~Y, type='scattermapbox', mode='lines') %>%
-#  layout(mapbox=list(style="open-street-map", zoom=6.8, center=list(lon=10, lat=54.15)))
-
 ```
 
 Although the plot looks good, the hover is snapping to many features. A reason for this could be, that the rivers consist of different parts. This can easily be verified.
@@ -278,17 +251,18 @@ Although the plot looks good, the hover is snapping to many features. A reason f
 SELECT name, count(*) from osm_nodes where node_type='waterway' and name is not null 
 group by name
 ```
+
 Now, we can use a geometric operation instead of the `count` function for the aggregation:
 ```{sql connection=con}
 drop table if exists rivers;
 create temporary table rivers as
-SELECT name, st_union(geom) as geom from osm_nodes
-where node_type='waterway' and name is not null
-group by name
+
+
 ```
 ```{sql connection=con}
 select name, round(st_length(st_transform(geom, 3035)) / 1000) as "length [km]" from rivers order by "length [km]" DESC
 ```
+
 Next, we could join each discharge station to the next waterway, but to practice a bit more PostGIS, we will aggregate the discharge stations and count them, if they are closer than 15 meters to the stream, by buffering the river.
 ```{sql connection=con}
 with buffers as (
@@ -304,40 +278,14 @@ from rivers r
 join stations s on s.name=r.name
 order by n_stations DESC
 ```
+
 And finally, we can aggregate the data along with the aggregation of the stations. If this is very useful from a hydrological perspective is up to you, but remember that much more powerful aggregations, than just an average value exist. We can do some simplified extreme statistics.
 For this we first need to take care of the discharge data and use some partitions, so that we can preserve the date at which the maximum discharge was observed. If we would simply group by year and aggregate with the `max` function, we lose that information.
 ```{sql connection=con}
 drop table if exists year_max;
-create table year_max as
-with q as(
-  select camels_id, date::timestamp without time zone as date, date_part('year', date::timestamp without time zone) as year, q
-  from camels_de_data
-  where q is not null
-),
-q_full as (
-  select camels_id, date, year, q,
-  first_value(q) over (partition by camels_id, year order by q desc) as max_q,
-  first_value(date) over (partition by camels_id, year order by q desc) as max_date
-  from q
-),
-year_max as (
-  select camels_id, year, max(max_q) as q, max(max_date) as date
-  from q_full
-  group by camels_id, year
-)
-select * from year_max
-```
-```{sql connection=con}
-drop view if exists extremes;
-create temporary view extremes as
-with q_ranks as (
-  select camels_id, year, q, date,
-    rank() over (partition by camels_id order by q desc) as rank,
-    count(*) over (partition by camels_id) as total
-  from year_max 
-)
-select camels_id, year, q, date, rank::real / (total + 1)::real as p, 1 / (rank::real / (total + 1)::real) as "T" from q_ranks
-order by "T" DESC
+
+
+
 ```
 ```{sql connection=con}
 select * from extremes limit 100
@@ -358,24 +306,9 @@ For this, it is useful to create a temporary table containing the merged extreme
 ```{sql connection=con}
 drop table if exists stats_with_rivers;
 create temporary table stats_with_rivers as
-with buffers as (
-  select name, st_buffer(st_transform(geom, 3035), 15) as buffer from rivers
-),
-stations_extremes as (
-  select camels_id, array_agg("T"::integer) as "T", array_agg(q) as q, array_agg(date) as date, array_agg(camels_id) as ids
-  from extremes
-  where "T" > 10
-  group by camels_id
-),
-meta as (
-  select c.camels_id, geometry, e."T", e.q, e.date, e.ids
-  from camels_de_metadata c
-  inner join stations_extremes e on e.camels_id=c.camels_id
-)
 
-select name, camels_id, geometry, "T", q, date, ids
-from meta
-join buffers on st_within(meta.geometry, buffers.buffer);
+
+
 ```
 ```{sql connection=con}
 select * from stats_with_rivers limit 10;
@@ -384,44 +317,8 @@ Now we have each CAMELS-DE station with all return periods, discharges and dates
 
 Create statistics for each river:
 ```{sql connection=con, output.var="extremes"}
-with t_agg as (
-  select name, array_agg(t) as "T"
-  from stats_with_rivers, unnest("T") as t
-  group by name
-),
-q_agg as (
-  select name, array_agg(t) as q
-  from stats_with_rivers, unnest(q) as t
-  group by name
-),
-date_agg as (
-  select name, array_agg(t) as date
-  from stats_with_rivers, unnest(date) as t
-  group by name
-),
-id_agg as (
-  select name, array_agg(t) as ids
-  from stats_with_rivers, unnest(ids) as t
-  group by name
-),
-base_stats as (
-  select name, count(camels_id) as n_stations from stats_with_rivers group by name
-),
-stats as (
-  select base_stats.name, n_stations, "T", q, date, ids
-  from base_stats
-  join q_agg on q_agg.name=base_stats.name
-  join t_agg on t_agg.name=base_stats.name
-  join date_agg on date_agg.name=base_stats.name
-  join id_agg on id_agg.name=base_stats.name
-)
 
-select 
-  r.name, round(st_length(st_transform(geom, 3035)) / 1000) as "length [km]", 
-  s.n_stations, s."T", s.q, s.date, s.ids
-from rivers r
-join stats s on s.name=r.name
-order by "length [km]" DESC
+
 ```
 ```{r}
 extremes
@@ -429,16 +326,7 @@ extremes
 
 Now, using nested data is really wild in R. It would be a good idea to use a more appropriate language here like Python or Typescript.
 ```{r}
-library(stringr)
-df <- data.frame(
-  str_split(str_sub(extremes$ids[5], 2, -2), ','),
-  str_split(str_sub(extremes$q[5], 2, -2), ','),
-  str_split(str_sub(extremes$T[5], 2, -2), ',')
-) 
-names(df) <- c('id', 'q', 'T')
-df %>% 
-  plot_ly(type="scatter", mode="markers+lines", x=~T, y=~q, color=~id, marker=list(size=12)) %>%
-  layout(title="floods with T > 10 years in the Treene", legend=list(orientation='h'))
+
 ```
 
 # cleanup

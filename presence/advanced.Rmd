@@ -89,20 +89,14 @@ SELECT * FROM variables
 We will first focus first on the temporary table for temperature and light.
 
 ```{sql connection=con}
-create temporary table temperature (
-  meta_id integer,
-  tstamp timestamp without time zone,
-  value real not null,
-  PRIMARY KEY (meta_id, tstamp)
-);
+
 ```
 
 Next, we need to issue an <span style="color:blue">INSERT</span> for each record we want to see in this new table. 
 If you are already familiar with programming languages, you might already loop in your mind over the `raw_data` table and add the needed data one-by-one into the `temperature` data. The big advantage of relational database systems is, that they are truly vectorized and we can just specify how the data should transition, the database engine will apply our expression to the **whole** relation at once.
 
 ```{sql connection=con}
-INSERT INTO temperature 
-SELECT meta_id, tstamp, value FROM raw_data WHERE variable_id=1
+
 ```
 
 ```{sql connection=con}
@@ -116,13 +110,12 @@ For larger tables it can be quite tedious to define each table and column by han
 You can literally turn any query result into a table.
 
 ```{sql connection=con}
-CREATE temporary TABLE light AS
-SELECT meta_id, tstamp, value FROM raw_data WHERE variable_id=2
+
 ```
 
 
 ```{sql connection=con}
-SELECT count(*) from light
+
 ```
 Now, let's just load the data to R and plot it. You can change the id to your HOBO.
 
@@ -130,12 +123,8 @@ Now, let's just load the data to R and plot it. You can change the id to your HO
 SELECT * FROM temperature WHERE meta_id = 123
 ```
 ```{r}
-df %>%
-  ggplot(aes(x=tstamp, y=value)) + 
-  geom_line(color='red', linewidth=2)
+
 ```
-
-
 
 ## Data Views
 
@@ -175,13 +164,7 @@ The true power of views is to persist more complex statistical reductions or eve
 Let's create a view on a view, for example calculating current daily indices:
 ```{sql connection=con}
 create temporary view temperature_indices as
-select meta_id, 
-  date_trunc('day', tstamp) as date, 
-  avg(temperature) as mean, 
-  min(temperature) as min, 
-  max(temperature) as max
-from temperature
-group by meta_id, date
+
 ```
 ```{sql connection=con}
 select * from temperature_indices order by date desc limit 5
@@ -190,14 +173,7 @@ select * from temperature_indices order by date desc limit 5
 This could also be calculated for the day measurements only, by simply adding a filter.
 ```{sql connection=con}
 create temporary view day_temperature_indices as
-select meta_id, 
-  date_trunc('day', tstamp) as date, 
-  avg(temperature) as mean, 
-  min(temperature) as min, 
-  max(temperature) as max
-from temperature
-where date_part('hour', tstamp) <= 8 and date_part('hour', tstamp) <= 18
-group by meta_id, date
+
 ```
 ```{sql connection=con}
 select * from day_temperature_indices order by date desc limit 5
@@ -212,15 +188,6 @@ select * from temperature_indices
 select * from day_temperature_indices
 ```
 ```{r}
-temperature %>%
-  filter(date > '2020-11-01' & date < '2021-02-1') %>%
-  ggplot(aes(x=date, y=mean)) + 
-  geom_point(color='brown')
-
-temperature.day %>%
-  filter(date > '2020-11-01' & date < '2021-02-1') %>%
-  ggplot(aes(x=date, y=mean)) + 
-  geom_point(color='red', alpha=0.8)
 
 ```
 
@@ -246,11 +213,6 @@ This section will give some more insights on <span style="color:blue">JOINS</spa
 First, we can implement the join done with R from the last example with SQL:
 
 ```{sql connection=con, output.var="combined"}
-select 
-  all_idx.meta_id, all_idx.date, all_idx.mean as "mean.all", day_idx.mean as "mean.day" 
-FROM temperature_indices as all_idx
-JOIN day_temperature_indices as day_idx on day_idx.meta_id=all_idx.meta_id and day_idx.date=all_idx.date
-WHERE all_idx.date > '2020-11-01' and all_idx.date < '2021-02-1'
 
 ```
 ```{r}
@@ -269,6 +231,7 @@ Maybe you have wondered, why not all of the metadata about the hobos was visible
 ```{sql connection=con}
 SELECT * from details LIMIT 5
 ```
+
 That looks weird. Which keys are available?
 ```{sql connection=con}
 SELECT DISTINCT key FROM details
@@ -279,49 +242,18 @@ This is a quite common pattern to store arbitrary key=value pairs to extend stru
 select * from details where key='exposition'
 ```
 ```{sql connection=con}
-SELECT str_value as value, count(*) as "n_references" from nm_metadata_details nm
-JOIN details d ON d.id=nm.detail_id
-WHERE key='exposition'
-GROUP BY value
+
 ```
 
 If we would decide to use the full names, like 'North' instead of 'N', we need only one update on the `details` table to affect all references. We can do the same thing for the sunlight influence and join both to the `metadata` table.
 To do that effectively, we need to introduce the concepts of *sub-queries*. There is no need to join two tables or views, we can also join a table to another <span style="color:blue">SELECT</span> in-place.
 ```{sql connection=con}
-select m.*, exp.exposition, inf.influence
-FROM metadata m
-JOIN (
-  select meta_id, str_value as exposition FROM nm_metadata_details nm
-  JOIN details d on nm.detail_id=d.id
-  where d.key='exposition'
-) exp on exp.meta_id=m.id
-JOIN (
-  select meta_id, str_value as influence FROM nm_metadata_details nm
-  JOIN details d on nm.detail_id=d.id
-  where d.key='influence'
-) inf on inf.meta_id=m.id
+
 ```
 
 As a final step, we can use the result from above to check if there is a general difference in temperature indices between the combinations on exposition and influence.
 ```{sql connection=con}
-select exposition, influence, avg(value) as mean_t from raw_data
-JOIN (
-  select m.*, exp.exposition, inf.influence
-  FROM metadata m
-  JOIN (
-    select meta_id, str_value as exposition FROM nm_metadata_details nm
-    JOIN details d on nm.detail_id=d.id
-    where d.key='exposition'
-  ) exp on exp.meta_id=m.id
-  JOIN (
-    select meta_id, str_value as influence FROM nm_metadata_details nm
-    JOIN details d on nm.detail_id=d.id
-    where d.key='influence'
-  ) inf on inf.meta_id=m.id
-) as m on m.id=raw_data.meta_id
-where variable_id = 1
-Group by exposition, influence
-order by exposition, influence
+
 ```
 
 ## left/right join
@@ -339,22 +271,15 @@ There are two tables involved: `camels_de_metadata` and `camels_de_data`. Please
 ```{sql connection=con}
 SELECT * FROM camels_de_metadata LIMIT 10
 ```
+
 The `camels_id` is the primary key and referenced by the data table `camels_de_data`. With a left join, we can join the metadata to the data and count the available days of data as aggregation information.
 ```{sql connection=con}
-select meta.camels_id, federal_state, area, data.count from camels_de_metadata meta
-LEFT JOIN (
-  select camels_id, count(*) from camels_de_data
-  group by camels_id
-) as data on data.camels_id=meta.camels_id
+
 ```
 
 The `LEFT` can be omitted here, as every join is a left join if the direction is not further specified. The opposing one is the `RIGHT JOIN`. This specifies the *direction* from which one table is joined to the other. The final result set cannot contain any information, that has no key in the primary table. Here, that means, the `LEFT JOIN` will contain all camels_id that exist in the left (primary) table. Now we only change the direction of the join:
 ```{sql connection=con}
-select meta.camels_id, federal_state, area, data.count from camels_de_metadata meta
-RIGHT JOIN (
-  select camels_id, count(*) from camels_de_data
-  group by camels_id
-) as data on data.camels_id=meta.camels_id
+
 ```
 
 You can notice that the camel_ids are not continuous anymore. There are only 237 instead of 775 rows in the result set. The `count` column, which originates from the right table is now always filled, there are no NAs anymore.
@@ -376,21 +301,14 @@ LIMIT 80
 ```
 
 ```{sql connection=con}
-select small_meta.camels_id, federal_state, area, data.count from small_meta
-LEFT OUTER JOIN (
-  select camels_id, count(*) from camels_de_data
-  group by camels_id
-) as data on data.camels_id=small_meta.camels_id
+
 ```
+
 You can see, that the <span style="color:blue">JOIN</span> is still a left one. All 80 primary keys are in the result set. 
 All joins we created so far were outer joins on the left table. That is the default behavior. The other type is the <span style="color:blue">INNER JOIN</span>, which does not have a direction.
 
 ```{sql connection=con}
-select small_meta.camels_id, federal_state, area, data.count from small_meta
-INNER JOIN (
-  select camels_id, count(*) from camels_de_data
-  group by camels_id
-) as data on data.camels_id=small_meta.camels_id
+
 ```
 
 
