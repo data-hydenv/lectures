@@ -26,7 +26,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ```
-# Install the packages
+# Install the packages for this lecture
 
 You can manipulate and query a [PostgreSQL](https://www.postgresql.org/) database from within R. The Package *RPostgreSQL* offers a high level binding and some helpful querying functions for handling a PostgreSQL instance. This database system is especially helpful in case you want to handle geodata as it includes a full featured GIS system in the extension [PostGIS](http://postgis.net/).
 At the same time, PostgreSQL can be tuned to be a high performance database system, which makes it extemely help- and powerful for environmental and atmospherical scientist we have both: geodata and huge (complex) data amounts. Last but not least, PostGIS is working very well with QGis, GRASS or SAGA GIS and some GIS Web Servers like Geoserver or Mapserver. This makes the R / Python - PostgreSQL - Online/Offline GIS stack maybe the most powerful software stack for (geo)data science.<br>
